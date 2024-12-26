@@ -1,0 +1,12 @@
+[package]
+name = "song-guessr"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+chrono = "0.4.39"
+librespot-core = "0.6.0"
+librespot-oauth = "0.6.0"
+rspotify = "0.13.3"
+tokio = { version = "1.41.1", features = ["rt", "rt-multi-thread", "macros", "time"] }
