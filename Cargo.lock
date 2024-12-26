@@ -2529,6 +2529,8 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "futures",
+ "futures-util",
  "librespot-core",
  "librespot-oauth",
  "rand",
