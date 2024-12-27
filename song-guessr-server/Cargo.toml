@@ -8,10 +8,13 @@ edition = "2021"
 anyhow = "1.0.95"
 axum = "0.7.9"
 chrono = "0.4.39"
+futures = "0.3.31"
+futures-util = "0.3.31"
 librespot-core = "0.6.0"
 librespot-oauth = "0.6.0"
 rand = "0.8.5"
 rspotify = "0.13.3"
+serde = "1.0.216"
 tokio = { version = "1.41.1", features = [
   "rt",
   "rt-multi-thread",
@@ -19,4 +22,3 @@ tokio = { version = "1.41.1", features = [
   "time",
 ] }
 tower-http = { version = "0.6.2", features = ["cors"] }
-rand = "0.8"

@@ -8,14 +8,18 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use futures::stream::TryStreamExt;
+use futures_util::pin_mut;
 use rspotify::{
-    model::{PlayableItem, SearchType, SimplifiedPlaylist},
+    model::{track, PlayableItem, SearchType, SimplifiedPlaylist},
     prelude::BaseClient,
     AuthCodeSpotify,
 };
 use tower_http::cors::CorsLayer;
 
 mod auth;
+mod choice;
+mod question;
 
 struct AppState {
     client: AuthCodeSpotify,
@@ -26,21 +30,30 @@ type SharedState = Arc<RwLock<AppState>>;
 async fn questions(
     Path(playlist_id): Path<String>,
     State(state): State<SharedState>,
-) -> Result<String, String> {
-    async fn api(playlist_id: String, state: &AppState) -> anyhow::Result<String> {
+) -> Result<Json<Vec<question::Question>>, String> {
+    async fn api(playlist_id: String, state: &AppState) -> anyhow::Result<Vec<question::Question>> {
         let playlist_id = rspotify::model::PlaylistId::from_id(playlist_id)?;
-        let playlist = state.client.playlist(playlist_id, None, None).await?;
-        let pos = rand::random::<usize>() % playlist.tracks.items.len();
-        match &playlist.tracks.items[pos].track {
-            Some(PlayableItem::Track(track)) => {
-                Ok(track.preview_url.clone().context("no preview url")?)
+        let stream = state.client.playlist_items(playlist_id, None, None);
+
+        let mut tracks: Vec<track::FullTrack> = Vec::new();
+        pin_mut!(stream);
+        while let Some(item) = stream.try_next().await.unwrap() {
+            let track = item.track.unwrap();
+            match track {
+                PlayableItem::Track(track) => {
+                    tracks.push(track);
+                }
+                _ => return Err(anyhow::anyhow!("invalid track")),
             }
-            _ => Err(anyhow::anyhow!("invalid track")),
         }
+        question::get_questions(tracks).await
     }
 
     let state = state.read().await;
-    api(playlist_id, &state).await.map_err(|e| e.to_string())
+    api(playlist_id, &state)
+        .await
+        .map_err(|e| e.to_string())
+        .map(|v| Json(v))
 }
 
 async fn playlist_search(

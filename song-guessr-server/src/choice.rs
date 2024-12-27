@@ -1,7 +1,8 @@
 use rspotify::model::track::FullTrack;
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Choice {
     pub name: String,
     pub artist: String,

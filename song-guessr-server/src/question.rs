@@ -1,41 +1,16 @@
 use crate::choice;
-use futures::stream::TryStreamExt;
-use futures_util::pin_mut;
 use rand::{seq::SliceRandom, thread_rng, Rng};
-use rspotify::{
-    model::{track, PlayableItem},
-    prelude::BaseClient,
-    AuthCodeSpotify,
-};
+use rspotify::model::track;
+use serde::{Deserialize, Serialize};
 use std::collections::BinaryHeap;
 
+#[derive(Serialize, Deserialize)]
 pub struct Question {
     pub choices: Vec<choice::Choice>,
     pub ans_id: usize,
 }
 
-pub async fn get_query(client: AuthCodeSpotify) -> anyhow::Result<Vec<Question>> {
-    let playlist_id = rspotify::model::PlaylistId::from_id("37i9dQZEVXbMDoHDwVN2tF")?;
-    let stream = client.playlist_items(playlist_id, None, None);
-
-    let mut tracks: Vec<track::FullTrack> = Vec::new();
-
-    pin_mut!(stream);
-    println!("Items (blocking):");
-    while let Some(item) = stream.try_next().await.unwrap() {
-        let track = item.track.unwrap();
-        match track {
-            PlayableItem::Track(track) => {
-                println!("Add track: {}", track.name);
-                tracks.push(track);
-            }
-            _ => {
-                println!("Not a track");
-            }
-        }
-    }
-    println!("Total tracks added: {}", tracks.len());
-
+pub async fn get_questions(tracks: Vec<track::FullTrack>) -> anyhow::Result<Vec<Question>> {
     let mut questions: Vec<Question> = Vec::new();
     let mut heap: BinaryHeap<choice::Choice> = BinaryHeap::new();
 
