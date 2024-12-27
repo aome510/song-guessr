@@ -11,6 +11,7 @@ function App() {
   const [questionId, setQuestionId] = useState<number>(0);
   const [questions, setQuestions] = useState<Array<Question>>([]);
   const [submitted, setSubmitted] = useState<boolean>(false);
+  const [numQuestions, setNumQuestions] = useState<number>(15);
 
   const makeApiRequest = async (url: string): Promise<Response> => {
     const response = await fetch(url);
@@ -26,7 +27,7 @@ function App() {
     if (playlistId !== "") {
       try {
         const response = await makeApiRequest(
-          `http://localhost:8000/questions/${playlistId}?questions=15`,
+          `http://localhost:8000/questions/${playlistId}?num_questions=${numQuestions}`,
         );
         const data = await response.json();
         console.assert(data instanceof Array, "Expected an array of questions");
@@ -50,6 +51,7 @@ function App() {
         console.assert(data instanceof Array, "Expected an array of playlists");
         setPlaylistId("");
         setResults(data);
+        setNumQuestions(15);
       } catch (err) {
         console.error(err);
       }
@@ -121,9 +123,26 @@ function App() {
           ))}
           {results.length > 0 && (
             <div>
-              <button type="submit" disabled={playlistId === ""}>
-                Submit
-              </button>
+              <div>
+                <label>
+                  Number of Questions:
+                  <select
+                    value={numQuestions}
+                    onChange={(e) => setNumQuestions(Number(e.target.value))}
+                  >
+                    {Array.from({ length: 30 }, (_, i) => i + 1).map((num) => (
+                      <option key={num} value={num}>
+                        {num}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div>
+                <button type="submit" disabled={playlistId === ""}>
+                  Submit
+                </button>
+              </div>
             </div>
           )}
         </form>
