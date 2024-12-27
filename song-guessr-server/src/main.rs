@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use anyhow::Context;
 use axum::{
     extract::{Path, State},
     http::{header::CONTENT_TYPE, HeaderValue, Method},
@@ -18,8 +17,7 @@ use rspotify::{
 use tower_http::cors::CorsLayer;
 
 mod auth;
-mod choice;
-mod question;
+mod model;
 
 struct AppState {
     client: AuthCodeSpotify,
@@ -30,8 +28,8 @@ type SharedState = Arc<RwLock<AppState>>;
 async fn questions(
     Path(playlist_id): Path<String>,
     State(state): State<SharedState>,
-) -> Result<Json<Vec<question::Question>>, String> {
-    async fn api(playlist_id: String, state: &AppState) -> anyhow::Result<Vec<question::Question>> {
+) -> Result<Json<Vec<model::Question>>, String> {
+    async fn api(playlist_id: String, state: &AppState) -> anyhow::Result<Vec<model::Question>> {
         let playlist_id = rspotify::model::PlaylistId::from_id(playlist_id)?;
         let stream = state.client.playlist_items(playlist_id, None, None);
 
@@ -46,14 +44,14 @@ async fn questions(
                 _ => return Err(anyhow::anyhow!("invalid track")),
             }
         }
-        question::get_questions(tracks).await
+        Ok(model::get_questions(tracks))
     }
 
     let state = state.read().await;
     api(playlist_id, &state)
         .await
         .map_err(|e| e.to_string())
-        .map(|v| Json(v))
+        .map(Json)
 }
 
 async fn playlist_search(
@@ -75,7 +73,7 @@ async fn playlist_search(
     api(query, &state)
         .await
         .map_err(|e| e.to_string())
-        .map(|v| Json(v))
+        .map(Json)
 }
 
 #[tokio::main]
