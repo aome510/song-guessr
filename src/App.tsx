@@ -1,15 +1,6 @@
 import { useRef, useState } from "react";
 import "./App.css";
-
-type User = {
-  display_name: string;
-};
-
-type Playlist = {
-  id: string;
-  name: string;
-  owner: User;
-};
+import { Playlist, Question } from "./model.tsx";
 
 function App() {
   const audioRef = useRef(new Audio());
@@ -18,7 +9,7 @@ function App() {
   const [playlistId, setPlaylistId] = useState("");
   const [selectedChoice, setSelectedChoice] = useState(0);
   const [questionId, setQuestionId] = useState(0);
-  const [questions, setQuestions] = useState([]);
+  const [questions, setQuestions] = useState<Array<Question>>([]);
 
   const makeApiRequest = async (url: string): Promise<Response> => {
     const response = await fetch(url);
@@ -55,6 +46,7 @@ function App() {
         );
         const data = await response.json();
         console.assert(data instanceof Array, "Expected an array of playlists");
+        setPlaylistId("");
         setResults(data);
       } catch (err) {
         console.error(err);
@@ -62,28 +54,24 @@ function App() {
     }
   };
 
-  const handleChoiceClick = (id: number) => {
-    setSelectedChoice(id);
-  };
-
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleChoiceSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    if (selectedChoice === questions[questionId].ans_id) {
+    const question = questions[questionId];
+    if (selectedChoice === question.ans_id) {
       alert("Correct!");
     } else {
       alert(
-        "Incorrect! Correct song is: " +
-          questions[questionId].choices[questions[questionId].ans_id].name,
+        "Incorrect! The correct song is " +
+          question.choices[question.ans_id].name,
       );
     }
     // Move to the next question
-    if (questionId < questions.length - 1) {
+    if (questionId + 1 < questions.length) {
       setQuestionId(questionId + 1);
       setSelectedChoice(0); // Reset selected choice for the next question
+      const next_question = questions[questionId + 1];
       audioRef.current.src =
-        questions[questionId + 1].choices[
-          questions[questionId + 1].ans_id
-        ].preview_url;
+        next_question.choices[next_question.ans_id].preview_url;
     } else {
       alert("Quiz completed!");
     }
@@ -93,6 +81,7 @@ function App() {
     <>
       <h1>Song Guessr</h1>
       <div>
+        <h2>Search for playlist</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -108,6 +97,7 @@ function App() {
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
+                  e.preventDefault(); // prevent form submission on Enter
                   searchPlaylists();
                 }
               }}
@@ -126,21 +116,25 @@ function App() {
               </label>
             </div>
           ))}
-          <button type="submit">Submit</button>
+          {results.length > 0 && (
+            <div>
+              <button type="submit" disabled={playlistId === ""}>
+                Submit
+              </button>
+            </div>
+          )}
         </form>
-      </div>
-      <div>
-        <audio ref={audioRef} autoPlay controls />
       </div>
       {questions.length > 0 && (
         <div>
-          <h2>Question: {questionId + 1}</h2>
-          <form onSubmit={handleSubmit}>
+          <h2>Question {questionId + 1}</h2>
+          <audio ref={audioRef} autoPlay controls />
+          <form onSubmit={handleChoiceSubmit}>
             {questions[questionId].choices.map((choice, index) => (
               <button
                 key={choice.name}
                 type="button"
-                onClick={() => handleChoiceClick(index)}
+                onClick={() => setSelectedChoice(index)}
                 style={{
                   backgroundColor: selectedChoice === index ? "blue" : "gray",
                   color: "white",
@@ -151,7 +145,9 @@ function App() {
                 {choice.name}
               </button>
             ))}
-            <button type="submit">Submit</button>
+            <div>
+              <button type="submit">Submit</button>
+            </div>
           </form>
         </div>
       )}
