@@ -25,7 +25,7 @@ function App() {
     if (playlistId !== "") {
       try {
         const response = await makeApiRequest(
-          `http://localhost:8000/questions/${playlistId}`,
+          `http://localhost:8000/questions/${playlistId}?questions=15`,
         );
         const data = await response.json();
         console.assert(data instanceof Array, "Expected an array of questions");
@@ -127,7 +127,8 @@ function App() {
       </div>
       {questions.length > 0 && (
         <div>
-          <h2>Question {questionId + 1}</h2>
+          <h2>Game</h2>
+          <h3>Question {questionId + 1}</h3>
           <audio ref={audioRef} autoPlay controls />
           <form onSubmit={handleChoiceSubmit}>
             {questions[questionId].choices.map((choice, index) => (

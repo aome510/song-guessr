@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{header::CONTENT_TYPE, HeaderValue, Method},
     routing::get,
     Json, Router,
@@ -10,7 +11,7 @@ use axum::{
 use futures::stream::TryStreamExt;
 use futures_util::pin_mut;
 use rspotify::{
-    model::{track, PlayableItem, SearchType, SimplifiedPlaylist},
+    model::{FullTrack, PlayableItem, SearchType, SimplifiedPlaylist},
     prelude::BaseClient,
     AuthCodeSpotify,
 };
@@ -25,30 +26,38 @@ struct AppState {
 
 type SharedState = Arc<RwLock<AppState>>;
 
+#[derive(Clone, Deserialize, Serialize)]
+struct QuestionQuery {
+    n_questions: Option<usize>,
+}
+
 async fn questions(
     Path(playlist_id): Path<String>,
     State(state): State<SharedState>,
+    Query(query): Query<QuestionQuery>,
 ) -> Result<Json<Vec<model::Question>>, String> {
-    async fn api(playlist_id: String, state: &AppState) -> anyhow::Result<Vec<model::Question>> {
+    async fn api(
+        playlist_id: String,
+        n_questions: usize,
+        state: &AppState,
+    ) -> anyhow::Result<Vec<model::Question>> {
         let playlist_id = rspotify::model::PlaylistId::from_id(playlist_id)?;
         let stream = state.client.playlist_items(playlist_id, None, None);
 
-        let mut tracks: Vec<track::FullTrack> = Vec::new();
+        let mut tracks: Vec<FullTrack> = Vec::new();
         pin_mut!(stream);
-        while let Some(item) = stream.try_next().await.unwrap() {
+        while let Some(item) = stream.try_next().await? {
             let track = item.track.unwrap();
-            match track {
-                PlayableItem::Track(track) => {
-                    tracks.push(track);
-                }
-                _ => return Err(anyhow::anyhow!("invalid track")),
+            if let PlayableItem::Track(track) = track {
+                tracks.push(track);
             }
         }
-        Ok(model::get_questions(tracks))
+        Ok(model::get_questions(tracks, n_questions))
     }
 
     let state = state.read().await;
-    api(playlist_id, &state)
+    let n_questions = query.n_questions.unwrap_or(15);
+    api(playlist_id, n_questions, &state)
         .await
         .map_err(|e| e.to_string())
         .map(Json)

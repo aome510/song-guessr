@@ -1,5 +1,5 @@
 use rand::{seq::SliceRandom, thread_rng, Rng};
-use rspotify::model::track::FullTrack;
+use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -52,7 +52,7 @@ fn get_choice(track: FullTrack) -> Choice {
     }
 }
 
-pub fn get_questions(tracks: Vec<FullTrack>) -> Vec<Question> {
+pub fn get_questions(tracks: Vec<FullTrack>, n_questions: usize) -> Vec<Question> {
     let mut questions: Vec<Question> = Vec::new();
     let mut heap: BinaryHeap<Choice> = BinaryHeap::new();
     let mut rng = thread_rng();
@@ -61,7 +61,7 @@ pub fn get_questions(tracks: Vec<FullTrack>) -> Vec<Question> {
         heap.push(get_choice(track));
     }
 
-    for _ in 0..15 {
+    for _ in 0..n_questions {
         let mut top_choices: Vec<Choice> = Vec::new();
 
         for _ in 0..4 {
