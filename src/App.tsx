@@ -4,12 +4,13 @@ import { Playlist, Question } from "./model.tsx";
 
 function App() {
   const audioRef = useRef(new Audio());
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState<string>("");
   const [results, setResults] = useState<Array<Playlist>>([]);
-  const [playlistId, setPlaylistId] = useState("");
-  const [selectedChoice, setSelectedChoice] = useState(0);
-  const [questionId, setQuestionId] = useState(0);
+  const [playlistId, setPlaylistId] = useState<string>("");
+  const [selectedChoice, setSelectedChoice] = useState<number>(0);
+  const [questionId, setQuestionId] = useState<number>(0);
   const [questions, setQuestions] = useState<Array<Question>>([]);
+  const [submitted, setSubmitted] = useState<boolean>(false);
 
   const makeApiRequest = async (url: string): Promise<Response> => {
     const response = await fetch(url);
@@ -31,6 +32,7 @@ function App() {
         console.assert(data instanceof Array, "Expected an array of questions");
         setQuestions(data);
         setQuestionId(0);
+        setSubmitted(true);
         audioRef.current.src = data[0].choices[data[0].ans_id].preview_url;
       } catch (err) {
         console.error(err);
@@ -74,12 +76,13 @@ function App() {
         next_question.choices[next_question.ans_id].preview_url;
     } else {
       alert("Quiz completed!");
+      setSubmitted(false);
     }
   };
 
-  return (
-    <>
-      <h1>Song Guessr</h1>
+  let gameplay;
+  if (!submitted) {
+    gameplay = (
       <div>
         <h2>Search for playlist</h2>
         <form
@@ -125,34 +128,41 @@ function App() {
           )}
         </form>
       </div>
-      {questions.length > 0 && (
-        <div>
-          <h2>Game</h2>
-          <h3>Question {questionId + 1}</h3>
-          <audio ref={audioRef} autoPlay controls />
-          <form onSubmit={handleChoiceSubmit}>
-            {questions[questionId].choices.map((choice, index) => (
-              <button
-                key={choice.name}
-                type="button"
-                onClick={() => setSelectedChoice(index)}
-                style={{
-                  backgroundColor: selectedChoice === index ? "blue" : "gray",
-                  color: "white",
-                  margin: "5px",
-                  padding: "10px",
-                }}
-              >
-                {choice.name}
-              </button>
-            ))}
-            <div>
-              <button type="submit">Submit</button>
-            </div>
-          </form>
-        </div>
-      )}
-      <div></div>
+    );
+  } else {
+    gameplay = (
+      <div>
+        <h2>Game</h2>
+        <h3>Question {questionId + 1}</h3>
+        <audio ref={audioRef} autoPlay controls />
+        <form onSubmit={handleChoiceSubmit}>
+          {questions[questionId].choices.map((choice, index) => (
+            <button
+              key={choice.name}
+              type="button"
+              onClick={() => setSelectedChoice(index)}
+              style={{
+                backgroundColor: selectedChoice === index ? "blue" : "gray",
+                color: "white",
+                margin: "5px",
+                padding: "10px",
+              }}
+            >
+              {choice.name}
+            </button>
+          ))}
+          <div>
+            <button type="submit">Submit</button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <h1>Song Guessr</h1>
+      {gameplay}
     </>
   );
 }
