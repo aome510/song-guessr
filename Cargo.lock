@@ -2531,6 +2531,7 @@ dependencies = [
  "chrono",
  "librespot-core",
  "librespot-oauth",
+ "rand",
  "rspotify",
  "tokio",
  "tower-http",

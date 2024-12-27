@@ -10,6 +10,7 @@ axum = "0.7.9"
 chrono = "0.4.39"
 librespot-core = "0.6.0"
 librespot-oauth = "0.6.0"
+rand = "0.8.5"
 rspotify = "0.13.3"
 tokio = { version = "1.41.1", features = [
   "rt",

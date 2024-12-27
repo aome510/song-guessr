@@ -1,27 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import "./App.css";
 
 function App() {
-  const [currentTrackUrl, setCurrentTrackUrl] = useState("");
+  const audioRef = useRef(new Audio());
+
+  const fetchAudioUrl = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/get");
+      audioRef.current.src = await response.text();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
-    const fetchAudioUrl = async () => {
-      try {
-        const response = await fetch("http://localhost:8000/get");
-        const text = await response.text();
-        setCurrentTrackUrl(text);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
     fetchAudioUrl();
   }, []);
 
   return (
     <>
       <h1>Song Guesser</h1>
-      <audio src={currentTrackUrl} controls />
+      <div>
+        <audio ref={audioRef} autoPlay controls />
+      </div>
+      <div>
+        <button onClick={fetchAudioUrl}>Re-generate</button>
+      </div>
     </>
   );
 }
