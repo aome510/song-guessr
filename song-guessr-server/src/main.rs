@@ -1,21 +1,24 @@
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use anyhow::Context;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{header::CONTENT_TYPE, HeaderValue, Method},
     routing::get,
     Json, Router,
 };
+use futures::stream::TryStreamExt;
+use futures_util::pin_mut;
 use rspotify::{
-    model::{PlayableItem, SearchType, SimplifiedPlaylist},
+    model::{FullTrack, PlayableItem, SearchType, SimplifiedPlaylist},
     prelude::BaseClient,
     AuthCodeSpotify,
 };
 use tower_http::cors::CorsLayer;
 
 mod auth;
+mod model;
 
 struct AppState {
     client: AuthCodeSpotify,
@@ -23,24 +26,41 @@ struct AppState {
 
 type SharedState = Arc<RwLock<AppState>>;
 
+#[derive(Clone, Deserialize, Serialize)]
+struct QuestionQuery {
+    n_questions: Option<usize>,
+}
+
 async fn questions(
     Path(playlist_id): Path<String>,
     State(state): State<SharedState>,
-) -> Result<String, String> {
-    async fn api(playlist_id: String, state: &AppState) -> anyhow::Result<String> {
+    Query(query): Query<QuestionQuery>,
+) -> Result<Json<Vec<model::Question>>, String> {
+    async fn api(
+        playlist_id: String,
+        n_questions: usize,
+        state: &AppState,
+    ) -> anyhow::Result<Vec<model::Question>> {
         let playlist_id = rspotify::model::PlaylistId::from_id(playlist_id)?;
-        let playlist = state.client.playlist(playlist_id, None, None).await?;
-        let pos = rand::random::<usize>() % playlist.tracks.items.len();
-        match &playlist.tracks.items[pos].track {
-            Some(PlayableItem::Track(track)) => {
-                Ok(track.preview_url.clone().context("no preview url")?)
+        let stream = state.client.playlist_items(playlist_id, None, None);
+
+        let mut tracks: Vec<FullTrack> = Vec::new();
+        pin_mut!(stream);
+        while let Some(item) = stream.try_next().await? {
+            let track = item.track.unwrap();
+            if let PlayableItem::Track(track) = track {
+                tracks.push(track);
             }
-            _ => Err(anyhow::anyhow!("invalid track")),
         }
+        Ok(model::get_questions(tracks, n_questions))
     }
 
     let state = state.read().await;
-    api(playlist_id, &state).await.map_err(|e| e.to_string())
+    let n_questions = query.n_questions.unwrap_or(15);
+    api(playlist_id, n_questions, &state)
+        .await
+        .map_err(|e| e.to_string())
+        .map(Json)
 }
 
 async fn playlist_search(
@@ -62,7 +82,7 @@ async fn playlist_search(
     api(query, &state)
         .await
         .map_err(|e| e.to_string())
-        .map(|v| Json(v))
+        .map(Json)
 }
 
 #[tokio::main]
