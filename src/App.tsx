@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import "./App.css";
 import { Playlist, Question } from "./model.tsx";
 
 function App() {
-  const audioRef = useRef(new Audio());
+  const [audioSrc, setAudioSrc] = useState<string>("");
   const [query, setQuery] = useState<string>("");
   const [results, setResults] = useState<Array<Playlist>>([]);
   const [playlistId, setPlaylistId] = useState<string>("");
@@ -33,7 +33,7 @@ function App() {
         setQuestions(data);
         setQuestionId(0);
         setSubmitted(true);
-        audioRef.current.src = data[0].choices[data[0].ans_id].preview_url;
+        setAudioSrc(data[0].choices[data[0].ans_id].preview_url);
       } catch (err) {
         console.error(err);
       }
@@ -72,11 +72,11 @@ function App() {
       setQuestionId(questionId + 1);
       setSelectedChoice(0); // Reset selected choice for the next question
       const next_question = questions[questionId + 1];
-      audioRef.current.src =
-        next_question.choices[next_question.ans_id].preview_url;
+      setAudioSrc(next_question.choices[next_question.ans_id].preview_url);
     } else {
       alert("Quiz completed!");
       setSubmitted(false);
+      setResults([]);
     }
   };
 
@@ -132,9 +132,8 @@ function App() {
   } else {
     gameplay = (
       <div>
-        <h2>Game</h2>
-        <h3>Question {questionId + 1}</h3>
-        <audio ref={audioRef} autoPlay controls />
+        <h2>Question {questionId + 1}</h2>
+        <audio src={audioSrc} autoPlay controls />
         <form onSubmit={handleChoiceSubmit}>
           {questions[questionId].choices.map((choice, index) => (
             <button
