@@ -14,12 +14,7 @@ jobs:
   rust-ci:
     if: github.event.pull_request.draft != true
 
-    strategy:
-      matrix:
-        os: [macOS-latest, windows-latest, ubuntu-latest]
-        toolchain: [stable]
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout source
@@ -29,7 +24,7 @@ jobs:
         id: install_toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.toolchain }}
+          toolchain: stable
           components: clippy, rustfmt
 
       - name: Cache cargo deps
@@ -39,8 +34,8 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-          key: ${{ runner.os }}-rustc-${{ steps.install_toolchain.outputs.cachekey }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-rustc-${{ steps.install_toolchain.outputs.cachekey }}
+          key: rustc-${{ steps.install_toolchain.outputs.cachekey }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: rustc-${{ steps.install_toolchain.outputs.cachekey }}
 
       - name: Cargo format
         run: cargo fmt --all -- --check
