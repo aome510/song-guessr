@@ -28,7 +28,7 @@ type SharedState = Arc<RwLock<AppState>>;
 
 #[derive(Clone, Deserialize, Serialize)]
 struct QuestionQuery {
-    n_questions: Option<usize>,
+    num_questions: Option<usize>,
 }
 
 async fn questions(
@@ -56,7 +56,7 @@ async fn questions(
     }
 
     let state = state.read().await;
-    let n_questions = query.n_questions.unwrap_or(15);
+    let n_questions = query.num_questions.unwrap_or(15);
     api(playlist_id, n_questions, &state)
         .await
         .map_err(|e| e.to_string())
