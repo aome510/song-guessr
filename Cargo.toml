@@ -4,3 +4,9 @@ members = ["song-guessr-server"]
 
 [profile.release]
 lto = true
+
+[workspace.lints.clippy]
+pedantic = { level = "deny", priority = 1 }
+enum_glob_use = { level = "deny", priority = 2 }
+perf = { level = "warn", priority = 3 }
+style = { level = "warn", priority = 4 }
