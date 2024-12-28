@@ -6,7 +6,16 @@ members = ["song-guessr-server"]
 lto = true
 
 [workspace.lints.clippy]
-pedantic = { level = "deny" }
-perf = { level = "warn" }
-style = { level = "warn" }
-complexity = { level = "warn" }
+pedantic = { level = "deny", priority = 1 }
+perf = { level = "warn", priority = 2 }
+style = { level = "warn", priority = 3 }
+complexity = { level = "warn", priority = 4 }
+
+module_name_repetitions = { level = "allow", priority = 20 }
+cast_possible_truncation = { level = "allow", priority = 20 }
+cast_sign_loss = { level = "allow", priority = 20 }
+cast_possible_wrap = { level = "allow", priority = 20 }
+cast_precision_loss = { level = "allow", priority = 20 }
+missing_errors_doc = { level = "allow", priority = 20 }
+similar_names = { level = "allow", priority = 20 }
+too_many_lines = { level = "allow", priority = 20 }
