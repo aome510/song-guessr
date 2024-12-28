@@ -45,11 +45,37 @@ jobs:
       - name: Cargo format
         run: cargo fmt --all -- --check
 
+      - name: Cargo clippy
+        run: cargo clippy -- -D warnings
+
       - name: Cargo test
         run: cargo test
 
-      - name: Cargo clippy
-        run: cargo clippy -- -D warnings
+  web-ci:
+    if: github.event.pull_request.draft != true
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: "18"
+
+      - name: Clean install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check
+        run: npm run check
+
+      - name: Build
+        run: npm run build
 
   typos:
     # https://github.com/crate-ci/typos
