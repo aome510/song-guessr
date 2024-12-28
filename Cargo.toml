@@ -6,7 +6,7 @@ members = ["song-guessr-server"]
 lto = true
 
 [workspace.lints.clippy]
-pedantic = { level = "deny", priority = 1 }
-enum_glob_use = { level = "deny", priority = 2 }
-perf = { level = "warn", priority = 3 }
-style = { level = "warn", priority = 4 }
+pedantic = { level = "deny" }
+perf = { level = "warn" }
+style = { level = "warn" }
+complexity = { level = "warn" }
