@@ -1,3 +1,4 @@
+use rspotify::model::SimplifiedPlaylist;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -8,20 +9,13 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use futures::stream::TryStreamExt;
-use futures_util::pin_mut;
-use rspotify::{
-    model::{FullTrack, PlayableItem, SearchType, SimplifiedPlaylist},
-    prelude::BaseClient,
-    AuthCodeSpotify,
-};
 use tower_http::cors::CorsLayer;
 
-mod auth;
+mod client;
 mod model;
 
 struct AppState {
-    client: AuthCodeSpotify,
+    client: client::Client,
 }
 
 type SharedState = Arc<RwLock<AppState>>;
@@ -36,28 +30,11 @@ async fn questions(
     State(state): State<SharedState>,
     Query(query): Query<QuestionQuery>,
 ) -> Result<Json<Vec<model::Question>>, String> {
-    async fn api(
-        playlist_id: String,
-        n_questions: usize,
-        state: &AppState,
-    ) -> anyhow::Result<Vec<model::Question>> {
-        let playlist_id = rspotify::model::PlaylistId::from_id(playlist_id)?;
-        let stream = state.client.playlist_items(playlist_id, None, None);
-
-        let mut tracks: Vec<FullTrack> = Vec::new();
-        pin_mut!(stream);
-        while let Some(item) = stream.try_next().await? {
-            let track = item.track.unwrap();
-            if let PlayableItem::Track(track) = track {
-                tracks.push(track);
-            }
-        }
-        Ok(model::get_questions(tracks, n_questions))
-    }
-
+    let num_questions = query.num_questions.unwrap_or(15);
     let state = state.read().await;
-    let n_questions = query.num_questions.unwrap_or(15);
-    api(playlist_id, n_questions, &state)
+    state
+        .client
+        .generate_questions(num_questions, playlist_id)
         .await
         .map_err(|e| e.to_string())
         .map(Json)
@@ -67,19 +44,10 @@ async fn playlist_search(
     Path(query): Path<String>,
     State(state): State<SharedState>,
 ) -> Result<Json<Vec<SimplifiedPlaylist>>, String> {
-    async fn api(query: String, state: &AppState) -> anyhow::Result<Vec<SimplifiedPlaylist>> {
-        let result = state
-            .client
-            .search(&query, SearchType::Playlist, None, None, None, None)
-            .await?;
-        match result {
-            rspotify::model::SearchResult::Playlists(page) => Ok(page.items),
-            _ => Err(anyhow::anyhow!("invalid search result")),
-        }
-    }
-
     let state = state.read().await;
-    api(query, &state)
+    state
+        .client
+        .search_playlist(query)
         .await
         .map_err(|e| e.to_string())
         .map(Json)
@@ -87,10 +55,8 @@ async fn playlist_search(
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let cache =
-        librespot_core::cache::Cache::new(Some(std::path::Path::new("/tmp")), None, None, None)?;
-    let token = auth::get_token(cache).await?;
-    let client = rspotify::AuthCodeSpotify::from_token(token);
+    let mut client = client::Client::new();
+    client.get_token().await?;
     let state = Arc::new(RwLock::new(AppState { client }));
 
     let cors = CorsLayer::new()
