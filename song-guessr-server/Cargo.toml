@@ -10,10 +10,8 @@ axum = "0.7.9"
 chrono = "0.4.39"
 futures = "0.3.31"
 futures-util = "0.3.31"
-librespot-core = "0.6.0"
-librespot-oauth = "0.6.0"
 rand = "0.8.5"
-rspotify = "0.13.3"
+rspotify = { version = "0.14.0", features = ["cli"] }
 serde = "1.0.216"
 tokio = { version = "1.41.1", features = [
   "rt",
