@@ -2,7 +2,7 @@ use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Choice {
     pub name: String,
     pub artist: String,
@@ -11,7 +11,7 @@ pub struct Choice {
     pub weight: i64,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Question {
     pub choices: Vec<Choice>,
     pub ans_id: usize,

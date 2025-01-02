@@ -1,7 +1,12 @@
 import { Playlist } from "./model.tsx";
 import { useState } from "react";
-import { makeApiRequest } from "./utils.tsx";
+import { get, post } from "./utils.tsx";
 import { useNavigate } from "react-router-dom";
+
+type GameRequest = {
+  playlist_id: string;
+  num_questions: number;
+};
 
 function Search() {
   const [query, setQuery] = useState<string>("");
@@ -13,9 +18,7 @@ function Search() {
   const searchPlaylists = async () => {
     if (query !== "") {
       try {
-        const response = await makeApiRequest(
-          `http://localhost:8000/search/${query}`,
-        );
+        const response = await get(`http://localhost:8000/search/${query}`);
         const data = await response.json();
         console.assert(data instanceof Array, "Expected an array of playlists");
         setPlaylistId("");
@@ -27,15 +30,27 @@ function Search() {
     }
   };
 
+  const newGame = async () => {
+    const body: GameRequest = {
+      playlist_id: playlistId,
+      num_questions: numQuestions,
+    };
+    try {
+      const response = await post("http://localhost:8000/game", body);
+      const data = await response.json();
+      navigate(`/game/${data.game_id}`);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div>
       <h2>Search for playlist</h2>
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          navigate(
-            `/game?playlist_id=${playlistId}&num_questions=${numQuestions}`,
-          );
+          newGame();
         }}
       >
         <label>
