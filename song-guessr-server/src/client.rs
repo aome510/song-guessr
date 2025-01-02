@@ -84,8 +84,7 @@ impl Client {
         let mut tracks: Vec<FullTrack> = Vec::new();
         futures::pin_mut!(stream);
         while let Some(item) = stream.try_next().await? {
-            let track = item.track.unwrap();
-            if let PlayableItem::Track(track) = track {
+            if let Some(PlayableItem::Track(track)) = item.track {
                 tracks.push(track);
             }
         }

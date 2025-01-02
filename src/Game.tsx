@@ -1,91 +1,115 @@
 import { useEffect, useMemo, useState } from "react";
-import { Question } from "./model.tsx";
+import { GameState, Question, UserGameState } from "./model.tsx";
 import { useNavigate, useParams } from "react-router-dom";
+import { getUserData } from "./utils.tsx";
+import UserForm from "./UserForm.tsx";
+
+function getWsUri(id: string): string {
+  const url = new URL(`api/game/${id}`, window.location.origin);
+  url.protocol = url.protocol == "https:" ? "wss:" : "ws:";
+  return url.href;
+}
 
 function Game() {
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [currentQuestionId, setCurrentQuestionId] = useState<number>(0);
+  const userData = getUserData();
+  const [users, setUsers] = useState<Array<UserGameState>>([]);
+  const [questionId, setQuestionId] = useState<number>(-1);
+  const [question, setQuestion] = useState<Question | null>(null);
+  const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const ws = useMemo(
-    () => new WebSocket(`ws://localhost:8000/game/${id}`),
-    [id],
-  );
+  if (id === undefined) {
+    throw new Error("Game ID is undefined");
+  }
+
+  const ws = useMemo(() => new WebSocket(getWsUri(id)), [id]);
 
   const audio = useMemo(() => new Audio(), []);
 
   useEffect(() => {
-    ws.onmessage = (event) => {
-      console.log(event.data);
-      const data = JSON.parse(event.data);
-      if (data.type === "Question") {
-        setCurrentQuestionId(data.id);
-        const question = data.question as Question;
-        setCurrentQuestion(question);
-        audio.src = question.choices[question.ans_id].preview_url;
-      } else if (data.type == "GameEnded") {
-        alert("Game ended!");
-        navigate("/");
-      }
-    };
-
     ws.onopen = () => {
-      console.log("WebSocket connected");
-      ws.send(JSON.stringify({ type: "GetCurrentQuestion" }));
-    };
+      if (userData === null) {
+        return;
+      }
 
+      ws.send(
+        JSON.stringify({
+          type: "UserJoined",
+          name: userData.name,
+          id: userData.id,
+        }),
+      );
+    };
+  }, [ws, userData]);
+
+  useEffect(() => {
     return () => {
       ws.close();
     };
-  }, [ws, audio, navigate]);
+  }, [ws]);
+
+  useEffect(() => {
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === "GameState") {
+        const state = data as GameState;
+
+        if (state.question_id !== questionId) {
+          setQuestionId(state.question_id);
+          setQuestion(state.question);
+          setSelectedChoice(null);
+          audio.src = state.question.song_url;
+        }
+
+        if (state.users !== users) {
+          setUsers(state.users);
+        }
+      } else if (data.type == "GameEnded") {
+        navigate("/");
+      }
+    };
+  }, [ws, audio, questionId, users, navigate]);
 
   useEffect(() => {
     audio.autoplay = true;
     audio.volume = 0.5;
     return () => {
       audio.pause();
+      audio.src = "";
     };
   }, [audio]);
 
   const handleChoiceSubmit = (selectedChoice: number) => {
-    if (currentQuestion === null) {
-      return;
-    }
-    if (selectedChoice === currentQuestion.ans_id) {
-      alert("Correct!");
-    } else {
-      alert(
-        "Incorrect! The correct song is " +
-          currentQuestion.choices[currentQuestion.ans_id].name,
-      );
-    }
+    setSelectedChoice(selectedChoice);
     ws.send(
       JSON.stringify({
-        type: "NextQuestion",
-      }),
-    );
-    ws.send(
-      JSON.stringify({
-        type: "GetCurrentQuestion",
+        type: "UserSubmitted",
+        user_id: userData?.id,
+        choice: selectedChoice,
       }),
     );
   };
 
-  if (currentQuestion === null) {
+  if (userData === null) {
+    return <UserForm />;
+  }
+
+  if (question === null) {
     return <div>Loading...</div>;
   }
 
   return (
     <div>
-      <h1>Question {currentQuestionId + 1}</h1>
-      {currentQuestion.choices.map((choice, index) => (
+      <h2>Question {questionId + 1}</h2>
+      {question.choices.map((choice, index) => (
         <button
           key={index}
           type="button"
           onClick={() => handleChoiceSubmit(index)}
+          disabled={selectedChoice !== null}
           style={{
-            backgroundColor: "gray",
+            backgroundColor: selectedChoice === index ? "blue" : "gray",
             color: "white",
             margin: "5px",
             padding: "10px",
@@ -94,6 +118,14 @@ function Game() {
           {choice.name}
         </button>
       ))}
+      <h2>Scoreboard</h2>
+      <ul>
+        {users.map((user) => (
+          <li key={user.name}>
+            {user.name}: {user.score}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

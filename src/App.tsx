@@ -3,6 +3,8 @@ import Game from "./Game.tsx";
 import { Route, BrowserRouter, Routes } from "react-router-dom";
 import "./App.css";
 
+const NotFound = () => <h1>404 - Page Not Found</h1>;
+
 function App() {
   return (
     <>
@@ -10,6 +12,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Search />} />
           <Route path="/game/:id" element={<Game />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </>

@@ -18,7 +18,7 @@ function Search() {
   const searchPlaylists = async () => {
     if (query !== "") {
       try {
-        const response = await get(`http://localhost:8000/search/${query}`);
+        const response = await get(`api/search/${query}`);
         const data = await response.json();
         console.assert(data instanceof Array, "Expected an array of playlists");
         setPlaylistId("");
@@ -36,7 +36,7 @@ function Search() {
       num_questions: numQuestions,
     };
     try {
-      const response = await post("http://localhost:8000/game", body);
+      const response = await post("api/game", body);
       const data = await response.json();
       navigate(`/game/${data.game_id}`);
     } catch (err) {
@@ -46,6 +46,7 @@ function Search() {
 
   return (
     <div>
+      <h1>Song Guessr</h1>
       <h2>Search for playlist</h2>
       <form
         onSubmit={(e) => {

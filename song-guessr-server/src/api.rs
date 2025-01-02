@@ -1,21 +1,24 @@
 use dashmap::DashMap;
 use rspotify::model::SimplifiedPlaylist;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{
+    mem,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use axum::{
     extract::{
         ws::{Message, WebSocket},
         Path, State, WebSocketUpgrade,
     },
-    http::{header::CONTENT_TYPE, HeaderValue, Method, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
-use tower_http::cors::CorsLayer;
 
-use crate::{client, game, model};
+use crate::{client, game};
 
 struct AppState {
     client: client::Client,
@@ -76,19 +79,20 @@ async fn new_game(
     Ok(Json(NewGameResponse { game_id }))
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsClientMessage {
-    GetCurrentQuestion,
-    NextQuestion,
+    UserSubmitted(game::UserSubmission),
+    UserJoined { name: String, id: String },
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsServerMessage {
-    Question {
-        question: model::Question,
-        id: usize,
+    GameState {
+        question: game::Question,
+        question_id: usize,
+        users: Vec<game::User>,
     },
     GameEnded,
 }
@@ -111,39 +115,100 @@ async fn get_game_ws(
     }
 }
 
+async fn send_game_state_update(
+    socket: &mut WebSocket,
+    game: &game::GameState,
+) -> anyhow::Result<()> {
+    let current_question_id = game.current_question.lock().id;
+    match game.questions.get(current_question_id) {
+        Some(question) => {
+            let users = game.users.iter().map(|u| u.value().clone()).collect();
+            let msg = WsServerMessage::GameState {
+                question: question.clone(),
+                question_id: current_question_id,
+                users,
+            };
+            let data = serde_json::to_string(&msg)?;
+            socket.send(Message::Text(data)).await?;
+        }
+        None => {
+            socket
+                .send(Message::Text(serde_json::to_string(
+                    &WsServerMessage::GameEnded,
+                )?))
+                .await?;
+        }
+    }
+    Ok(())
+}
+
+fn handle_question_end(
+    current_question: &mut parking_lot::MutexGuard<game::QuestionState>,
+    game: &game::GameState,
+) {
+    let submissions = mem::take(&mut current_question.submissions);
+    for submission in submissions {
+        if let Some(mut user) = game.users.get_mut(&submission.user_id) {
+            if submission.choice == game.questions[current_question.id].ans_id {
+                user.score += 1;
+            }
+        }
+    }
+
+    current_question.id += 1;
+    current_question.timer = Instant::now();
+
+    let _ = game.update.send(()); // ignore broadcast send error
+}
+
+async fn handle_client_msg(msg: WsClientMessage, game: &game::GameState) -> anyhow::Result<()> {
+    match msg {
+        WsClientMessage::UserSubmitted(submission) => {
+            let mut current_question = game.current_question.lock();
+            current_question.submissions.push(submission);
+
+            // end the current question if all users have submitted
+            if current_question.submissions.len() == game.users.len() {
+                handle_question_end(&mut current_question, game);
+            }
+        }
+        WsClientMessage::UserJoined { name, id } => {
+            game.users.entry(id).or_insert(game::User::new(name));
+            let _ = game.update.send(()); // ignore broadcast send error
+        }
+    }
+    Ok(())
+}
+
 async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow::Result<()> {
-    while let Some(msg) = socket.recv().await {
-        if let Message::Text(data) = msg? {
-            let msg: WsClientMessage = serde_json::from_str(&data)?;
-            match msg {
-                WsClientMessage::GetCurrentQuestion => {
-                    let current_question_id = *game.current_question_id.lock();
-                    match game.questions.get(current_question_id) {
-                        Some(question) => {
-                            let msg = WsServerMessage::Question {
-                                question: question.clone(),
-                                id: current_question_id,
-                            };
-                            let data = serde_json::to_string(&msg)?;
-                            socket.send(Message::Text(data)).await?;
-                        }
-                        None => {
-                            socket
-                                .send(Message::Text(serde_json::to_string(
-                                    &WsServerMessage::GameEnded,
-                                )?))
-                                .await?;
-                        }
-                    }
+    let mut update = game.update.subscribe();
+    let polling_interval = std::time::Duration::from_millis(100);
+
+    loop {
+        tokio::select! {
+            msg = socket.recv() => {
+                let msg = if let Some(msg) = msg {
+                    msg
+                } else {
+                    // connection closed
+                    return Ok(());
+                };
+                if let Message::Text(data) = msg? {
+                    let msg: WsClientMessage = serde_json::from_str(&data)?;
+                    handle_client_msg(msg, game).await?;
                 }
-                WsClientMessage::NextQuestion => {
-                    let mut current_question_id = game.current_question_id.lock();
-                    *current_question_id += 1;
+            }
+            _ = update.recv() => {
+                send_game_state_update(socket, game).await?;
+            }
+            _ = tokio::time::sleep(polling_interval) => {
+                let mut current_question = game.current_question.lock();
+                if current_question.timer.elapsed() >= Duration::from_secs(10) {
+                    handle_question_end(&mut current_question, game);
                 }
             }
         }
     }
-    Ok(())
 }
 
 async fn search_playlist(
@@ -159,15 +224,9 @@ pub fn new_app(client: client::Client) -> Router {
         game: DashMap::new(),
     });
 
-    let cors = CorsLayer::new()
-        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([CONTENT_TYPE]);
-
     Router::new()
         .route("/game", post(new_game))
         .route("/game/:id", get(get_game_ws))
         .route("/search/:query", get(search_playlist))
-        .layer(cors)
         .with_state(state)
 }
