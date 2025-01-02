@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Question } from "./model.tsx";
 import { useNavigate, useParams } from "react-router-dom";
+import { getUserData } from "./utils.tsx";
+import UserForm from "./UserForm.tsx";
 
 function getWsUri(id: string): string {
   const url = new URL(`api/game/${id}`, window.location.origin);
@@ -9,6 +11,7 @@ function getWsUri(id: string): string {
 }
 
 function Game() {
+  const userData = getUserData();
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [currentQuestionId, setCurrentQuestionId] = useState<number>(0);
   const navigate = useNavigate();
@@ -36,8 +39,20 @@ function Game() {
       }
     };
 
-    ws.onopen = () => {};
-  }, [ws, audio, navigate]);
+    ws.onopen = () => {
+      if (userData === null) {
+        return;
+      }
+
+      ws.send(
+        JSON.stringify({
+          type: "UserJoined",
+          name: userData.name,
+          id: userData.id,
+        }),
+      );
+    };
+  }, [ws, audio, userData, navigate]);
 
   useEffect(() => {
     audio.autoplay = true;
@@ -65,6 +80,10 @@ function Game() {
       }),
     );
   };
+
+  if (userData === null) {
+    return <UserForm />;
+  }
 
   if (currentQuestion === null) {
     return <div>Loading...</div>;

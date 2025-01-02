@@ -1,15 +1,29 @@
 use crate::model::{Choice, Question};
+use dashmap::DashMap;
 use parking_lot::Mutex;
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use rspotify::model::FullTrack;
+use serde::{Deserialize, Serialize};
 use std::collections::{BinaryHeap, HashSet};
 use tokio::sync::broadcast;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct User {
+    pub name: String,
+}
+
+impl User {
+    pub fn new(name: String) -> Self {
+        Self { name }
+    }
+}
 
 #[derive(Debug)]
 pub struct GameState {
     pub update: broadcast::Sender<()>,
     pub questions: Vec<Question>,
     pub current_question_id: Mutex<usize>,
+    pub users: DashMap<String, User>,
 }
 
 impl GameState {
@@ -19,6 +33,7 @@ impl GameState {
             update,
             questions,
             current_question_id: Mutex::new(0),
+            users: DashMap::new(),
         }
     }
 }

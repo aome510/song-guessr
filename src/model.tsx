@@ -18,4 +18,9 @@ type Question = {
   ans_id: number;
 };
 
-export type { User, Playlist, Choice, Question };
+type UserData = {
+  id: string;
+  name: string;
+};
+
+export type { User, Playlist, Choice, Question, UserData };

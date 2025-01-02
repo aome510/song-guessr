@@ -1,3 +1,5 @@
+import { UserData } from "./model";
+
 async function get(url: string): Promise<Response> {
   const response = await fetch(url);
   if (response.status !== 200) {
@@ -24,4 +26,16 @@ async function post<T>(url: string, body: T): Promise<Response> {
   }
 }
 
-export { get, post };
+function getUserData(): UserData | null {
+  const id = localStorage.getItem("userId");
+  if (id === null) {
+    return null;
+  }
+  const name = localStorage.getItem("userName");
+  if (name === null) {
+    return null;
+  }
+  return { id, name };
+}
+
+export { get, post, getUserData };

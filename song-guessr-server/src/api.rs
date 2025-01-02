@@ -79,6 +79,7 @@ async fn new_game(
 #[serde(tag = "type")]
 enum WsClientMessage {
     NextQuestion,
+    UserJoined { name: String, id: String },
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -135,9 +136,6 @@ async fn send_game_state_update(
 }
 
 async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow::Result<()> {
-    // send a game state update to the client upon new connection
-    send_game_state_update(socket, game).await?;
-
     let mut update = game.update.subscribe();
 
     loop {
@@ -155,6 +153,10 @@ async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow
                         WsClientMessage::NextQuestion => {
                             let mut current_question_id = game.current_question_id.lock();
                             *current_question_id += 1;
+                            let _ = game.update.send(()); // ignore broadcast send error
+                        }
+                        WsClientMessage::UserJoined { name, id } => {
+                            game.users.entry(id).or_insert(game::User::new(name));
                             let _ = game.update.send(()); // ignore broadcast send error
                         }
                     }
@@ -184,6 +186,5 @@ pub fn new_app(client: client::Client) -> Router {
         .route("/game", post(new_game))
         .route("/game/:id", get(get_game_ws))
         .route("/search/:query", get(search_playlist))
-        // .layer(cors)
         .with_state(state)
 }

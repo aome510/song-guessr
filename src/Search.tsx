@@ -46,6 +46,7 @@ function Search() {
 
   return (
     <div>
+      <h1>Song Guessr</h1>
       <h2>Search for playlist</h2>
       <form
         onSubmit={(e) => {
