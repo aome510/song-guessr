@@ -28,6 +28,28 @@ function Game() {
   const audio = useMemo(() => new Audio(), []);
 
   useEffect(() => {
+    ws.onopen = () => {
+      if (userData === null) {
+        return;
+      }
+
+      ws.send(
+        JSON.stringify({
+          type: "UserJoined",
+          name: userData.name,
+          id: userData.id,
+        }),
+      );
+    };
+  }, [ws, userData]);
+
+  useEffect(() => {
+    return () => {
+      ws.close();
+    };
+  }, [ws]);
+
+  useEffect(() => {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "GameState") {
@@ -47,25 +69,7 @@ function Game() {
         navigate("/");
       }
     };
-
-    ws.onopen = () => {
-      if (userData === null) {
-        return;
-      }
-
-      ws.send(
-        JSON.stringify({
-          type: "UserJoined",
-          name: userData.name,
-          id: userData.id,
-        }),
-      );
-    };
-
-    return () => {
-      ws.close();
-    };
-  }, [ws, audio, userData, questionId, users, navigate]);
+  }, [ws, audio, questionId, users, navigate]);
 
   useEffect(() => {
     audio.autoplay = true;
