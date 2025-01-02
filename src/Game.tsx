@@ -61,6 +61,10 @@ function Game() {
         }),
       );
     };
+
+    return () => {
+      ws.close();
+    };
   }, [ws, audio, userData, questionId, users, navigate]);
 
   useEffect(() => {
@@ -68,6 +72,7 @@ function Game() {
     audio.volume = 0.5;
     return () => {
       audio.pause();
+      audio.src = "";
     };
   }, [audio]);
 
