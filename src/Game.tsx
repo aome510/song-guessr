@@ -2,22 +2,29 @@ import { useEffect, useMemo, useState } from "react";
 import { Question } from "./model.tsx";
 import { useNavigate, useParams } from "react-router-dom";
 
+function getWsUri(id: string): string {
+  const url = new URL(`api/game/${id}`, window.location.origin);
+  url.protocol = url.protocol == "https:" ? "wss:" : "ws:";
+  console.log(url.href);
+  return url.href;
+}
+
 function Game() {
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [currentQuestionId, setCurrentQuestionId] = useState<number>(0);
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const ws = useMemo(
-    () => new WebSocket(`ws://localhost:8000/game/${id}`),
-    [id],
-  );
+  if (id === undefined) {
+    throw new Error("Game ID is undefined");
+  }
+
+  const ws = useMemo(() => new WebSocket(getWsUri(id)), [id]);
 
   const audio = useMemo(() => new Audio(), []);
 
   useEffect(() => {
     ws.onmessage = (event) => {
-      console.log(event.data);
       const data = JSON.parse(event.data);
       if (data.type === "Question") {
         setCurrentQuestionId(data.id);
@@ -31,7 +38,6 @@ function Game() {
     };
 
     ws.onopen = () => {
-      console.log("WebSocket connected");
       ws.send(JSON.stringify({ type: "GetCurrentQuestion" }));
     };
 

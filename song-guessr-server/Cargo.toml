@@ -22,4 +22,3 @@ tokio = { version = "1.41.1", features = [
   "macros",
   "time",
 ] }
-tower-http = { version = "0.6.2", features = ["cors"] }

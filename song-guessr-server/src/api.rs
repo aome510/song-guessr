@@ -8,12 +8,11 @@ use axum::{
         ws::{Message, WebSocket},
         Path, State, WebSocketUpgrade,
     },
-    http::{header::CONTENT_TYPE, HeaderValue, Method, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
 };
-use tower_http::cors::CorsLayer;
 
 use crate::{client, game, model};
 
@@ -159,15 +158,10 @@ pub fn new_app(client: client::Client) -> Router {
         game: DashMap::new(),
     });
 
-    let cors = CorsLayer::new()
-        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([CONTENT_TYPE]);
-
     Router::new()
         .route("/game", post(new_game))
         .route("/game/:id", get(get_game_ws))
         .route("/search/:query", get(search_playlist))
-        .layer(cors)
+        // .layer(cors)
         .with_state(state)
 }
