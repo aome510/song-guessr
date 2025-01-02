@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { GameState } from "./model.tsx";
+import { GameState, Question, UserGameState } from "./model.tsx";
 import { useNavigate, useParams } from "react-router-dom";
 import { getUserData } from "./utils.tsx";
 import UserForm from "./UserForm.tsx";
@@ -12,7 +12,9 @@ function getWsUri(id: string): string {
 
 function Game() {
   const userData = getUserData();
-  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [users, setUsers] = useState<Array<UserGameState>>([]);
+  const [questionId, setQuestionId] = useState<number>(-1);
+  const [question, setQuestion] = useState<Question | null>(null);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const navigate = useNavigate();
   const { id } = useParams();
@@ -30,11 +32,18 @@ function Game() {
       const data = JSON.parse(event.data);
       if (data.type === "GameState") {
         const state = data as GameState;
-        setGameState(state);
-        setSelectedChoice(null);
-        audio.src = state.question.song_url;
+
+        if (state.question_id !== questionId) {
+          setQuestionId(state.question_id);
+          setQuestion(state.question);
+          setSelectedChoice(null);
+          audio.src = state.question.song_url;
+        }
+
+        if (state.users !== users) {
+          setUsers(state.users);
+        }
       } else if (data.type == "GameEnded") {
-        alert("Game ended!");
         navigate("/");
       }
     };
@@ -52,7 +61,7 @@ function Game() {
         }),
       );
     };
-  }, [ws, audio, userData, navigate]);
+  }, [ws, audio, userData, questionId, users, navigate]);
 
   useEffect(() => {
     audio.autoplay = true;
@@ -77,14 +86,14 @@ function Game() {
     return <UserForm />;
   }
 
-  if (gameState === null) {
+  if (question === null) {
     return <div>Loading...</div>;
   }
 
   return (
     <div>
-      <h2>Question {gameState.question_id + 1}</h2>
-      {gameState.question.choices.map((choice, index) => (
+      <h2>Question {questionId + 1}</h2>
+      {question.choices.map((choice, index) => (
         <button
           key={index}
           type="button"
@@ -102,7 +111,7 @@ function Game() {
       ))}
       <h2>Scoreboard</h2>
       <ul>
-        {gameState.users.map((user) => (
+        {users.map((user) => (
           <li key={user.name}>
             {user.name}: {user.score}
           </li>

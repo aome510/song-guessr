@@ -5,6 +5,7 @@ use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
+use std::time::Instant;
 use tokio::sync::broadcast;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,10 +20,21 @@ impl User {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct QuestionState {
     pub id: usize,
     pub submissions: Vec<UserSubmission>,
+    pub timer: Instant,
+}
+
+impl QuestionState {
+    pub fn new() -> Self {
+        Self {
+            id: 0,
+            submissions: Vec::new(),
+            timer: Instant::now(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -45,7 +57,7 @@ impl GameState {
         Self {
             update,
             questions,
-            current_question: Mutex::new(QuestionState::default()),
+            current_question: Mutex::new(QuestionState::new()),
             users: DashMap::new(),
         }
     }

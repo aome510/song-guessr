@@ -1,7 +1,11 @@
 use dashmap::DashMap;
 use rspotify::model::SimplifiedPlaylist;
 use serde::{Deserialize, Serialize};
-use std::{mem, sync::Arc};
+use std::{
+    mem,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use axum::{
     extract::{
@@ -138,22 +142,34 @@ async fn send_game_state_update(
     Ok(())
 }
 
+fn handle_question_end(
+    current_question: &mut parking_lot::MutexGuard<game::QuestionState>,
+    game: &game::GameState,
+) {
+    let submissions = mem::take(&mut current_question.submissions);
+    for submission in submissions {
+        if let Some(mut user) = game.users.get_mut(&submission.user_id) {
+            if submission.choice == game.questions[current_question.id].ans_id {
+                user.score += 1;
+            }
+        }
+    }
+
+    current_question.id += 1;
+    current_question.timer = Instant::now();
+
+    let _ = game.update.send(()); // ignore broadcast send error
+}
+
 async fn handle_client_msg(msg: WsClientMessage, game: &game::GameState) -> anyhow::Result<()> {
     match msg {
         WsClientMessage::UserSubmitted(submission) => {
             let mut current_question = game.current_question.lock();
             current_question.submissions.push(submission);
+
+            // end the current question if all users have submitted
             if current_question.submissions.len() == game.users.len() {
-                let submissions = mem::take(&mut current_question.submissions);
-                for submission in submissions {
-                    if let Some(mut user) = game.users.get_mut(&submission.user_id) {
-                        if submission.choice == game.questions[current_question.id].ans_id {
-                            user.score += 1;
-                        }
-                    }
-                }
-                current_question.id += 1;
-                let _ = game.update.send(()); // ignore broadcast send error
+                handle_question_end(&mut current_question, game);
             }
         }
         WsClientMessage::UserJoined { name, id } => {
@@ -166,6 +182,7 @@ async fn handle_client_msg(msg: WsClientMessage, game: &game::GameState) -> anyh
 
 async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow::Result<()> {
     let mut update = game.update.subscribe();
+    let polling_interval = std::time::Duration::from_millis(100);
 
     loop {
         tokio::select! {
@@ -183,6 +200,12 @@ async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow
             }
             _ = update.recv() => {
                 send_game_state_update(socket, game).await?;
+            }
+            _ = tokio::time::sleep(polling_interval) => {
+                let mut current_question = game.current_question.lock();
+                if current_question.timer.elapsed() >= Duration::from_secs(10) {
+                    handle_question_end(&mut current_question, game);
+                }
             }
         }
     }

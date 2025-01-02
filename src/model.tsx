@@ -33,4 +33,4 @@ type GameState = {
   users: Array<UserGameState>;
 };
 
-export type { Playlist, UserData, GameState };
+export type { Playlist, UserData, UserGameState, Question, GameState };
