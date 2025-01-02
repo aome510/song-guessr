@@ -3,16 +3,20 @@ use parking_lot::Mutex;
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use rspotify::model::FullTrack;
 use std::collections::{BinaryHeap, HashSet};
+use tokio::sync::broadcast;
 
 #[derive(Debug)]
 pub struct GameState {
+    pub update: broadcast::Sender<()>,
     pub questions: Vec<Question>,
     pub current_question_id: Mutex<usize>,
 }
 
 impl GameState {
     pub fn new(questions: Vec<Question>) -> Self {
+        let (update, _) = broadcast::channel(10);
         Self {
+            update,
             questions,
             current_question_id: Mutex::new(0),
         }

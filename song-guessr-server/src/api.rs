@@ -78,7 +78,6 @@ async fn new_game(
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsClientMessage {
-    GetCurrentQuestion,
     NextQuestion,
 }
 
@@ -110,39 +109,62 @@ async fn get_game_ws(
     }
 }
 
-async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow::Result<()> {
-    while let Some(msg) = socket.recv().await {
-        if let Message::Text(data) = msg? {
-            let msg: WsClientMessage = serde_json::from_str(&data)?;
-            match msg {
-                WsClientMessage::GetCurrentQuestion => {
-                    let current_question_id = *game.current_question_id.lock();
-                    match game.questions.get(current_question_id) {
-                        Some(question) => {
-                            let msg = WsServerMessage::Question {
-                                question: question.clone(),
-                                id: current_question_id,
-                            };
-                            let data = serde_json::to_string(&msg)?;
-                            socket.send(Message::Text(data)).await?;
-                        }
-                        None => {
-                            socket
-                                .send(Message::Text(serde_json::to_string(
-                                    &WsServerMessage::GameEnded,
-                                )?))
-                                .await?;
-                        }
-                    }
-                }
-                WsClientMessage::NextQuestion => {
-                    let mut current_question_id = game.current_question_id.lock();
-                    *current_question_id += 1;
-                }
-            }
+async fn send_game_state_update(
+    socket: &mut WebSocket,
+    game: &game::GameState,
+) -> anyhow::Result<()> {
+    let current_question_id = *game.current_question_id.lock();
+    match game.questions.get(current_question_id) {
+        Some(question) => {
+            let msg = WsServerMessage::Question {
+                question: question.clone(),
+                id: current_question_id,
+            };
+            let data = serde_json::to_string(&msg)?;
+            socket.send(Message::Text(data)).await?;
+        }
+        None => {
+            socket
+                .send(Message::Text(serde_json::to_string(
+                    &WsServerMessage::GameEnded,
+                )?))
+                .await?;
         }
     }
     Ok(())
+}
+
+async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow::Result<()> {
+    // send a game state update to the client upon new connection
+    send_game_state_update(socket, game).await?;
+
+    let mut update = game.update.subscribe();
+
+    loop {
+        tokio::select! {
+            msg = socket.recv() => {
+                let msg = if let Some(msg) = msg {
+                    msg
+                } else {
+                    // connection closed
+                    return Ok(());
+                };
+                if let Message::Text(data) = msg? {
+                    let msg: WsClientMessage = serde_json::from_str(&data)?;
+                    match msg {
+                        WsClientMessage::NextQuestion => {
+                            let mut current_question_id = game.current_question_id.lock();
+                            *current_question_id += 1;
+                            let _ = game.update.send(()); // ignore broadcast send error
+                        }
+                    }
+                }
+            }
+            _ = update.recv() => {
+                send_game_state_update(socket, game).await?;
+            }
+        }
+    }
 }
 
 async fn search_playlist(

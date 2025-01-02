@@ -5,7 +5,6 @@ import { useNavigate, useParams } from "react-router-dom";
 function getWsUri(id: string): string {
   const url = new URL(`api/game/${id}`, window.location.origin);
   url.protocol = url.protocol == "https:" ? "wss:" : "ws:";
-  console.log(url.href);
   return url.href;
 }
 
@@ -37,13 +36,7 @@ function Game() {
       }
     };
 
-    ws.onopen = () => {
-      ws.send(JSON.stringify({ type: "GetCurrentQuestion" }));
-    };
-
-    return () => {
-      ws.close();
-    };
+    ws.onopen = () => {};
   }, [ws, audio, navigate]);
 
   useEffect(() => {
@@ -69,11 +62,6 @@ function Game() {
     ws.send(
       JSON.stringify({
         type: "NextQuestion",
-      }),
-    );
-    ws.send(
-      JSON.stringify({
-        type: "GetCurrentQuestion",
       }),
     );
   };
