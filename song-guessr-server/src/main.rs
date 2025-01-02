@@ -1,5 +1,6 @@
 mod api;
 mod client;
+mod game;
 mod model;
 
 #[tokio::main]
