@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use axum::{
-    extract::{Path, State},
+    extract::{
+        ws::{Message, WebSocket},
+        Path, State, WebSocketUpgrade,
+    },
     http::{header::CONTENT_TYPE, HeaderValue, Method, StatusCode},
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -12,11 +15,11 @@ use axum::{
 };
 use tower_http::cors::CorsLayer;
 
-use crate::{client, game, model::Question};
+use crate::{client, game, model};
 
 struct AppState {
     client: client::Client,
-    game: DashMap<String, game::GameState>,
+    game: DashMap<String, Arc<game::GameState>>,
 }
 
 // TODO: properly classify the error
@@ -68,31 +71,79 @@ async fn new_game(
 
     let game = game::GameState::new(questions);
     let game_id = game::gen_game_id();
-    state.game.insert(game_id.clone(), game);
+    state.game.insert(game_id.clone(), Arc::new(game));
 
     Ok(Json(NewGameResponse { game_id }))
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct GameResponse {
-    id: usize,
-    question: Question,
+#[serde(tag = "type")]
+enum WsClientMessage {
+    GetCurrentQuestion,
+    NextQuestion,
 }
 
-async fn game(
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "type")]
+enum WsServerMessage {
+    Question {
+        question: model::Question,
+        id: usize,
+    },
+    GameEnded,
+}
+
+async fn get_game_ws(
     Path(id): Path<String>,
+    ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
-) -> Result<Json<GameResponse>, AppError> {
-    match state.game.get(&id) {
-        Some(game) => {
-            let response = GameResponse {
-                id: game.current_question_id,
-                question: game.questions[game.current_question_id].clone(),
-            };
-            Ok(Json(response))
-        }
-        None => Err(anyhow::anyhow!("game {id} not found").into()),
+) -> Response {
+    if let Some(game) = state.game.get(&id) {
+        let game = game.clone();
+        ws.on_upgrade(move |mut socket| async move {
+            if let Err(err) = handle_socket(&mut socket, &game).await {
+                // TODO: use logging crate
+                eprintln!("Error handling WebSocket: {:?}", err);
+            }
+        })
+    } else {
+        (StatusCode::NOT_FOUND, "Game not found").into_response()
     }
+}
+
+async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow::Result<()> {
+    while let Some(msg) = socket.recv().await {
+        if let Message::Text(data) = msg? {
+            let msg: WsClientMessage = serde_json::from_str(&data)?;
+            match msg {
+                WsClientMessage::GetCurrentQuestion => {
+                    let current_question_id = *game.current_question_id.lock();
+                    match game.questions.get(current_question_id) {
+                        Some(question) => {
+                            let msg = WsServerMessage::Question {
+                                question: question.clone(),
+                                id: current_question_id,
+                            };
+                            let data = serde_json::to_string(&msg)?;
+                            socket.send(Message::Text(data)).await?;
+                        }
+                        None => {
+                            socket
+                                .send(Message::Text(serde_json::to_string(
+                                    &WsServerMessage::GameEnded,
+                                )?))
+                                .await?;
+                        }
+                    }
+                }
+                WsClientMessage::NextQuestion => {
+                    let mut current_question_id = game.current_question_id.lock();
+                    *current_question_id += 1;
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 async fn search_playlist(
@@ -115,7 +166,7 @@ pub fn new_app(client: client::Client) -> Router {
 
     Router::new()
         .route("/game", post(new_game))
-        .route("/game/:id", get(game))
+        .route("/game/:id", get(get_game_ws))
         .route("/search/:query", get(search_playlist))
         .layer(cors)
         .with_state(state)

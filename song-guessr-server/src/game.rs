@@ -1,19 +1,20 @@
 use crate::model::{Choice, Question};
+use parking_lot::Mutex;
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use rspotify::model::FullTrack;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashSet};
 
 #[derive(Debug)]
 pub struct GameState {
     pub questions: Vec<Question>,
-    pub current_question_id: usize,
+    pub current_question_id: Mutex<usize>,
 }
 
 impl GameState {
     pub fn new(questions: Vec<Question>) -> Self {
         Self {
             questions,
-            current_question_id: 0,
+            current_question_id: Mutex::new(0),
         }
     }
 }
@@ -22,8 +23,13 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
     let mut questions: Vec<Question> = Vec::new();
     let mut heap: BinaryHeap<Choice> = BinaryHeap::new();
     let mut rng = thread_rng();
+    let mut seen_names = HashSet::new();
 
     for track in tracks {
+        if seen_names.contains(&track.name) {
+            continue;
+        }
+        seen_names.insert(track.name.clone());
         heap.push(track.into());
     }
 
