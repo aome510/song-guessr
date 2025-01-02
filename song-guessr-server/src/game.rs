@@ -1,28 +1,41 @@
-use crate::model::{Choice, Question};
 use dashmap::DashMap;
 use parking_lot::Mutex;
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
 use tokio::sync::broadcast;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
     pub name: String,
+    pub score: u32,
 }
 
 impl User {
     pub fn new(name: String) -> Self {
-        Self { name }
+        Self { name, score: 0 }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct QuestionState {
+    pub id: usize,
+    pub submissions: Vec<UserSubmission>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UserSubmission {
+    pub user_id: String,
+    pub choice: usize,
 }
 
 #[derive(Debug)]
 pub struct GameState {
     pub update: broadcast::Sender<()>,
     pub questions: Vec<Question>,
-    pub current_question_id: Mutex<usize>,
+    pub current_question: Mutex<QuestionState>,
     pub users: DashMap<String, User>,
 }
 
@@ -32,9 +45,47 @@ impl GameState {
         Self {
             update,
             questions,
-            current_question_id: Mutex::new(0),
+            current_question: Mutex::new(QuestionState::default()),
             users: DashMap::new(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Choice {
+    pub name: String,
+    pub artists: String,
+    #[serde(skip)]
+    pub preview_url: String,
+    #[serde(skip)]
+    pub weight: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Question {
+    pub choices: Vec<Choice>,
+    pub song_url: String,
+    #[serde(skip)]
+    pub ans_id: usize,
+}
+
+impl PartialEq for Choice {
+    fn eq(&self, other: &Self) -> bool {
+        self.weight == other.weight
+    }
+}
+
+impl Eq for Choice {}
+
+impl PartialOrd for Choice {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some((self.weight).cmp(&(other.weight)))
+    }
+}
+
+impl Ord for Choice {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.weight).cmp(&(other.weight))
     }
 }
 
@@ -49,7 +100,22 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
             continue;
         }
         seen_names.insert(track.name.clone());
-        heap.push(track.into());
+
+        let preview_url = if let Some(url) = track.preview_url {
+            url
+        } else {
+            continue;
+        };
+        heap.push(Choice {
+            name: track.name,
+            artists: track
+                .artists
+                .into_iter()
+                .map(|a| a.name)
+                .fold(String::new(), |s, a| s + &a + ", "),
+            preview_url,
+            weight: track.popularity as i64,
+        });
     }
 
     for _ in 0..num_questions {
@@ -66,6 +132,7 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
         let ans_id = rng.gen_range(0..4);
         let question = Question {
             choices: top_choices.clone(),
+            song_url: top_choices[ans_id].preview_url.clone(),
             ans_id,
         };
         questions.push(question);

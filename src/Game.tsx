@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Question } from "./model.tsx";
+import { GameState } from "./model.tsx";
 import { useNavigate, useParams } from "react-router-dom";
 import { getUserData } from "./utils.tsx";
 import UserForm from "./UserForm.tsx";
@@ -12,8 +12,8 @@ function getWsUri(id: string): string {
 
 function Game() {
   const userData = getUserData();
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
-  const [currentQuestionId, setCurrentQuestionId] = useState<number>(0);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const navigate = useNavigate();
   const { id } = useParams();
 
@@ -28,11 +28,11 @@ function Game() {
   useEffect(() => {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === "Question") {
-        setCurrentQuestionId(data.id);
-        const question = data.question as Question;
-        setCurrentQuestion(question);
-        audio.src = question.choices[question.ans_id].preview_url;
+      if (data.type === "GameState") {
+        const state = data as GameState;
+        setGameState(state);
+        setSelectedChoice(null);
+        audio.src = state.question.song_url;
       } else if (data.type == "GameEnded") {
         alert("Game ended!");
         navigate("/");
@@ -63,20 +63,12 @@ function Game() {
   }, [audio]);
 
   const handleChoiceSubmit = (selectedChoice: number) => {
-    if (currentQuestion === null) {
-      return;
-    }
-    if (selectedChoice === currentQuestion.ans_id) {
-      alert("Correct!");
-    } else {
-      alert(
-        "Incorrect! The correct song is " +
-          currentQuestion.choices[currentQuestion.ans_id].name,
-      );
-    }
+    setSelectedChoice(selectedChoice);
     ws.send(
       JSON.stringify({
-        type: "NextQuestion",
+        type: "UserSubmitted",
+        user_id: userData?.id,
+        choice: selectedChoice,
       }),
     );
   };
@@ -85,20 +77,21 @@ function Game() {
     return <UserForm />;
   }
 
-  if (currentQuestion === null) {
+  if (gameState === null) {
     return <div>Loading...</div>;
   }
 
   return (
     <div>
-      <h1>Question {currentQuestionId + 1}</h1>
-      {currentQuestion.choices.map((choice, index) => (
+      <h2>Question {gameState.question_id + 1}</h2>
+      {gameState.question.choices.map((choice, index) => (
         <button
           key={index}
           type="button"
           onClick={() => handleChoiceSubmit(index)}
+          disabled={selectedChoice !== null}
           style={{
-            backgroundColor: "gray",
+            backgroundColor: selectedChoice === index ? "blue" : "gray",
             color: "white",
             margin: "5px",
             padding: "10px",
@@ -107,6 +100,14 @@ function Game() {
           {choice.name}
         </button>
       ))}
+      <h2>Scoreboard</h2>
+      <ul>
+        {gameState.users.map((user) => (
+          <li key={user.name}>
+            {user.name}: {user.score}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

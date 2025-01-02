@@ -1,7 +1,7 @@
 use dashmap::DashMap;
 use rspotify::model::SimplifiedPlaylist;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{mem, sync::Arc};
 
 use axum::{
     extract::{
@@ -14,7 +14,7 @@ use axum::{
     Json, Router,
 };
 
-use crate::{client, game, model};
+use crate::{client, game};
 
 struct AppState {
     client: client::Client,
@@ -75,19 +75,20 @@ async fn new_game(
     Ok(Json(NewGameResponse { game_id }))
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsClientMessage {
-    NextQuestion,
+    UserSubmitted(game::UserSubmission),
     UserJoined { name: String, id: String },
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsServerMessage {
-    Question {
-        question: model::Question,
-        id: usize,
+    GameState {
+        question: game::Question,
+        question_id: usize,
+        users: Vec<game::User>,
     },
     GameEnded,
 }
@@ -114,12 +115,14 @@ async fn send_game_state_update(
     socket: &mut WebSocket,
     game: &game::GameState,
 ) -> anyhow::Result<()> {
-    let current_question_id = *game.current_question_id.lock();
+    let current_question_id = game.current_question.lock().id;
     match game.questions.get(current_question_id) {
         Some(question) => {
-            let msg = WsServerMessage::Question {
+            let users = game.users.iter().map(|u| u.value().clone()).collect();
+            let msg = WsServerMessage::GameState {
                 question: question.clone(),
-                id: current_question_id,
+                question_id: current_question_id,
+                users,
             };
             let data = serde_json::to_string(&msg)?;
             socket.send(Message::Text(data)).await?;
@@ -130,6 +133,32 @@ async fn send_game_state_update(
                     &WsServerMessage::GameEnded,
                 )?))
                 .await?;
+        }
+    }
+    Ok(())
+}
+
+async fn handle_client_msg(msg: WsClientMessage, game: &game::GameState) -> anyhow::Result<()> {
+    match msg {
+        WsClientMessage::UserSubmitted(submission) => {
+            let mut current_question = game.current_question.lock();
+            current_question.submissions.push(submission);
+            if current_question.submissions.len() == game.users.len() {
+                let submissions = mem::take(&mut current_question.submissions);
+                for submission in submissions {
+                    if let Some(mut user) = game.users.get_mut(&submission.user_id) {
+                        if submission.choice == game.questions[current_question.id].ans_id {
+                            user.score += 1;
+                        }
+                    }
+                }
+                current_question.id += 1;
+                let _ = game.update.send(()); // ignore broadcast send error
+            }
+        }
+        WsClientMessage::UserJoined { name, id } => {
+            game.users.entry(id).or_insert(game::User::new(name));
+            let _ = game.update.send(()); // ignore broadcast send error
         }
     }
     Ok(())
@@ -149,17 +178,7 @@ async fn handle_socket(socket: &mut WebSocket, game: &game::GameState) -> anyhow
                 };
                 if let Message::Text(data) = msg? {
                     let msg: WsClientMessage = serde_json::from_str(&data)?;
-                    match msg {
-                        WsClientMessage::NextQuestion => {
-                            let mut current_question_id = game.current_question_id.lock();
-                            *current_question_id += 1;
-                            let _ = game.update.send(()); // ignore broadcast send error
-                        }
-                        WsClientMessage::UserJoined { name, id } => {
-                            game.users.entry(id).or_insert(game::User::new(name));
-                            let _ = game.update.send(()); // ignore broadcast send error
-                        }
-                    }
+                    handle_client_msg(msg, game).await?;
                 }
             }
             _ = update.recv() => {

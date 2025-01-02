@@ -1,21 +1,20 @@
-type User = {
+type SpotifyUser = {
   display_name: string;
 };
 
 type Playlist = {
   id: string;
   name: string;
-  owner: User;
+  owner: SpotifyUser;
 };
 
 type Choice = {
   name: string;
-  preview_url: string;
 };
 
 type Question = {
   choices: Array<Choice>;
-  ans_id: number;
+  song_url: string;
 };
 
 type UserData = {
@@ -23,4 +22,15 @@ type UserData = {
   name: string;
 };
 
-export type { User, Playlist, Choice, Question, UserData };
+type UserGameState = {
+  name: string;
+  score: number;
+};
+
+type GameState = {
+  question: Question;
+  question_id: number;
+  users: Array<UserGameState>;
+};
+
+export type { Playlist, UserData, GameState };
