@@ -1,23 +1,40 @@
 use dashmap::DashMap;
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
 use std::time::Instant;
-use tokio::sync::broadcast;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct User {
-    pub name: String,
-    pub score: u32,
+#[derive(Debug)]
+pub struct Room {
+    pub owner_id: String,
+    pub update_broadcast: tokio::sync::broadcast::Sender<()>,
+    pub game: RwLock<GameState>,
+    pub users: DashMap<String, User>,
 }
 
-impl User {
-    pub fn new(name: String) -> Self {
-        Self { name, score: 0 }
+impl Room {
+    pub fn new(owner_id: String) -> Self {
+        let (update_broadcast, _) = tokio::sync::broadcast::channel(10);
+        Self {
+            owner_id,
+            update_broadcast,
+            game: RwLock::new(GameState::Waiting),
+            users: DashMap::new(),
+        }
     }
+}
+
+#[derive(Debug)]
+pub enum GameState {
+    Waiting,
+    Playing {
+        questions: Vec<Question>,
+        current_question: QuestionState,
+    },
+    Ended,
 }
 
 #[derive(Debug)]
@@ -37,30 +54,30 @@ impl QuestionState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub name: String,
+    pub score: u64,
+}
+
+impl User {
+    pub fn new(name: String) -> Self {
+        Self { name, score: 0 }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserSubmission {
     pub user_id: String,
     pub choice: usize,
 }
 
-#[derive(Debug)]
-pub struct GameState {
-    pub update: broadcast::Sender<()>,
-    pub questions: Vec<Question>,
-    pub current_question: Mutex<QuestionState>,
-    pub users: DashMap<String, User>,
-}
-
-impl GameState {
-    pub fn new(questions: Vec<Question>) -> Self {
-        let (update, _) = broadcast::channel(10);
-        Self {
-            update,
-            questions,
-            current_question: Mutex::new(QuestionState::new()),
-            users: DashMap::new(),
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Question {
+    pub choices: Vec<Choice>,
+    pub song_url: String,
+    #[serde(skip)]
+    pub ans_id: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,14 +88,6 @@ pub struct Choice {
     pub preview_url: String,
     #[serde(skip)]
     pub weight: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Question {
-    pub choices: Vec<Choice>,
-    pub song_url: String,
-    #[serde(skip)]
-    pub ans_id: usize,
 }
 
 impl PartialEq for Choice {
@@ -162,10 +171,10 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
     questions
 }
 
-pub fn gen_game_id() -> String {
+pub fn gen_id(len: usize) -> String {
     thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
-        .take(10)
+        .take(len)
         .map(char::from)
         .collect()
 }
