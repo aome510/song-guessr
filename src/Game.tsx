@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { GameState, Question, UserGameState } from "./model.tsx";
+import { PlayingGameState, Question, UserGameState } from "./model.tsx";
 import { useNavigate, useParams } from "react-router-dom";
 import { getUserData } from "./utils.tsx";
 import UserForm from "./UserForm.tsx";
@@ -41,19 +41,17 @@ function Game() {
         }),
       );
     };
-  }, [ws, userData]);
 
-  useEffect(() => {
     return () => {
       ws.close();
     };
-  }, [ws]);
+  }, [ws, userData]);
 
   useEffect(() => {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === "GameState") {
-        const state = data as GameState;
+        const state = data as PlayingGameState;
 
         if (state.question_id !== questionId) {
           setQuestionId(state.question_id);

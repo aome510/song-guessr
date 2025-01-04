@@ -27,10 +27,21 @@ type UserGameState = {
   score: number;
 };
 
-type GameState = {
+type PlayingGameState = {
   question: Question;
   question_id: number;
   users: Array<UserGameState>;
 };
 
-export type { Playlist, UserData, UserGameState, Question, GameState };
+type WaitingGameState = {
+  users: Array<UserGameState>;
+};
+
+export type {
+  Playlist,
+  UserData,
+  UserGameState,
+  Question,
+  PlayingGameState,
+  WaitingGameState,
+};
