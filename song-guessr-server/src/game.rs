@@ -1,23 +1,115 @@
 use dashmap::DashMap;
-use parking_lot::Mutex;
+use parking_lot::RwLock;
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
+use std::mem;
 use std::time::Instant;
-use tokio::sync::broadcast;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct User {
-    pub name: String,
-    pub score: u32,
+const QUESTION_TIMEOUT_IN_SECS: u64 = 10;
+
+#[derive(Debug)]
+pub struct Room {
+    pub update_broadcast: tokio::sync::broadcast::Sender<()>,
+    pub game: RwLock<GameState>,
+    pub users: DashMap<String, User>,
 }
 
-impl User {
-    pub fn new(name: String) -> Self {
-        Self { name, score: 0 }
+impl Room {
+    pub fn new() -> Self {
+        let (update_broadcast, _) = tokio::sync::broadcast::channel(10);
+        Self {
+            update_broadcast,
+            game: RwLock::new(GameState::Waiting),
+            users: DashMap::new(),
+        }
     }
+
+    pub fn active_users(&self) -> Vec<User> {
+        self.users
+            .iter()
+            .filter_map(|u| if u.online { Some(u.clone()) } else { None })
+            .collect()
+    }
+
+    pub fn on_question_end(&self) {
+        let mut game = self.game.write();
+        if let GameState::Playing(state) = &mut *game {
+            let submissions = mem::take(&mut state.current_question.submissions);
+            for submission in submissions {
+                if let Some(mut user) = self.users.get_mut(&submission.user_id) {
+                    if submission.choice == state.questions[state.current_question.id].ans_id {
+                        user.score += 1;
+                    }
+                }
+            }
+
+            if state.current_question.id + 1 >= state.questions.len() {
+                *game = GameState::Ended;
+            } else {
+                state.current_question.id += 1;
+                state.current_question.timer = Instant::now();
+            }
+
+            let _ = self.update_broadcast.send(()); // ignore broadcast send error
+        }
+    }
+
+    pub fn new_game(&self, questions: Vec<Question>) {
+        let mut game = self.game.write();
+        *game = GameState::Playing(PlayingGameState {
+            questions,
+            current_question: QuestionState::new(),
+        });
+        let _ = self.update_broadcast.send(());
+    }
+
+    pub fn periodic_update(&self) {
+        let game = self.game.read();
+        if let GameState::Playing(state) = &*game {
+            // end the current question if time is up
+            if state.current_question.timer.elapsed().as_secs() >= QUESTION_TIMEOUT_IN_SECS {
+                drop(game);
+                self.on_question_end();
+            }
+        }
+    }
+
+    pub fn on_user_join(&self, user_id: &str, user_name: &str) {
+        match self.users.entry(user_id.to_string()) {
+            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
+                entry.get_mut().online = true;
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert(User::new(user_name.to_string()));
+            }
+        }
+        let _ = self.update_broadcast.send(());
+    }
+
+    pub fn on_user_leave(&self, user_id: &str, remove: bool) {
+        if remove {
+            self.users.remove(user_id);
+        } else if let Some(mut user) = self.users.get_mut(user_id) {
+            user.online = false;
+        }
+        let _ = self.update_broadcast.send(());
+    }
+}
+
+#[derive(Debug)]
+pub struct PlayingGameState {
+    pub questions: Vec<Question>,
+    pub current_question: QuestionState,
+}
+
+#[derive(Debug)]
+pub enum GameState {
+    Waiting,
+    Playing(PlayingGameState),
+    Ended,
 }
 
 #[derive(Debug)]
@@ -37,30 +129,35 @@ impl QuestionState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub name: String,
+    pub score: u64,
+    pub online: bool,
+}
+
+impl User {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            score: 0,
+            online: true,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct UserSubmission {
     pub user_id: String,
     pub choice: usize,
 }
 
-#[derive(Debug)]
-pub struct GameState {
-    pub update: broadcast::Sender<()>,
-    pub questions: Vec<Question>,
-    pub current_question: Mutex<QuestionState>,
-    pub users: DashMap<String, User>,
-}
-
-impl GameState {
-    pub fn new(questions: Vec<Question>) -> Self {
-        let (update, _) = broadcast::channel(10);
-        Self {
-            update,
-            questions,
-            current_question: Mutex::new(QuestionState::new()),
-            users: DashMap::new(),
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Question {
+    pub choices: Vec<Choice>,
+    pub song_url: String,
+    #[serde(skip)]
+    pub ans_id: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -71,14 +168,6 @@ pub struct Choice {
     pub preview_url: String,
     #[serde(skip)]
     pub weight: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Question {
-    pub choices: Vec<Choice>,
-    pub song_url: String,
-    #[serde(skip)]
-    pub ans_id: usize,
 }
 
 impl PartialEq for Choice {
@@ -162,10 +251,10 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
     questions
 }
 
-pub fn gen_game_id() -> String {
+pub fn gen_id(len: usize) -> String {
     thread_rng()
         .sample_iter(&rand::distributions::Alphanumeric)
-        .take(10)
+        .take(len)
         .map(char::from)
         .collect()
 }

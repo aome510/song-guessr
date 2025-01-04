@@ -17,7 +17,7 @@ type Question = {
   song_url: string;
 };
 
-type UserData = {
+type User = {
   id: string;
   name: string;
 };
@@ -27,10 +27,26 @@ type UserGameState = {
   score: number;
 };
 
-type GameState = {
+type PlayingGameState = {
   question: Question;
   question_id: number;
   users: Array<UserGameState>;
 };
 
-export type { Playlist, UserData, UserGameState, Question, GameState };
+type WaitingGameState = {
+  users: Array<UserGameState>;
+};
+
+type EndedGameState = {
+  users: Array<UserGameState>;
+};
+
+export type {
+  Playlist,
+  User,
+  UserGameState,
+  Question,
+  PlayingGameState,
+  WaitingGameState,
+  EndedGameState,
+};

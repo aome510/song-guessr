@@ -1,4 +1,4 @@
-import { UserData } from "./model";
+import { User } from "./model";
 
 async function get(url: string): Promise<Response> {
   const response = await fetch(url);
@@ -26,7 +26,7 @@ async function post<T>(url: string, body: T): Promise<Response> {
   }
 }
 
-function getUserData(): UserData | null {
+function getUserData(): User | null {
   const id = localStorage.getItem("userId");
   if (id === null) {
     return null;
