@@ -45,21 +45,12 @@ impl IntoResponse for AppError {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-struct NewRoomRequest {
-    user_id: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize)]
 struct NewRoomResponse {
     room_id: String,
 }
 
-async fn new_room(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<NewRoomRequest>,
-) -> Result<Json<NewRoomResponse>, AppError> {
-    let NewRoomRequest { user_id } = request;
-    let room = game::Room::new(user_id);
+async fn new_room(State(state): State<Arc<AppState>>) -> Result<Json<NewRoomResponse>, AppError> {
+    let room = game::Room::new();
     let room_id = game::gen_id(8);
     state.rooms.insert(room_id.clone(), Arc::new(room));
     Ok(Json(NewRoomResponse { room_id }))
@@ -68,7 +59,6 @@ async fn new_room(
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsClientMessage {
-    NewGame,
     UserSubmitted(game::UserSubmission),
 }
 
@@ -161,11 +151,6 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
 
 async fn handle_client_msg(msg: WsClientMessage, room: &game::Room) -> anyhow::Result<()> {
     match msg {
-        WsClientMessage::NewGame => {
-            let mut game = room.game.write();
-            *game = game::GameState::Waiting;
-            let _ = room.update_broadcast.send(());
-        }
         WsClientMessage::UserSubmitted(submission) => {
             let mut game = room.game.write();
             if let game::GameState::Playing(state) = &mut (*game) {
@@ -186,7 +171,7 @@ async fn handle_socket(
     room: &game::Room,
     mut update_rx: tokio::sync::broadcast::Receiver<()>,
 ) -> anyhow::Result<()> {
-    // let polling_interval = std::time::Duration::from_millis(100);
+    let polling_interval = std::time::Duration::from_millis(100);
 
     loop {
         tokio::select! {
@@ -205,10 +190,24 @@ async fn handle_socket(
             _ = update_rx.recv() => {
                 on_game_state_update(socket, room).await?;
             }
-                // _ = tokio::time::sleep(polling_interval) => {
-                // room.periodic_update();
-            // }
+            _ = tokio::time::sleep(polling_interval) => {
+                room.periodic_update();
+            }
         }
+    }
+}
+
+async fn reset_room(
+    Path(id): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<()>, AppError> {
+    if let Some(room) = state.rooms.get(&id) {
+        let mut game = room.game.write();
+        *game = game::GameState::Waiting;
+        let _ = room.update_broadcast.send(());
+        Ok(Json(()))
+    } else {
+        Err(anyhow::anyhow!("Room {id} not found").into())
     }
 }
 
@@ -267,6 +266,7 @@ pub fn new_app(client: client::Client) -> Router {
     Router::new()
         .route("/room", post(new_room))
         .route("/room/:id", get(get_room_ws))
+        .route("/room/:id/reset", post(reset_room))
         .route("/room/:id/game", post(new_game))
         .route("/search", get(search_playlist))
         .with_state(state)

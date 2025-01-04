@@ -1,9 +1,10 @@
 import { EndedGameState } from "./model";
+import { post } from "./utils";
 
 const GameResults: React.FC<{
-  ws: WebSocket;
+  room: string;
   state: EndedGameState;
-}> = ({ ws, state }) => {
+}> = ({ room, state }) => {
   return (
     <div>
       <h2>Game Results</h2>
@@ -16,7 +17,7 @@ const GameResults: React.FC<{
       </ul>
       <button
         onClick={() => {
-          ws.send(JSON.stringify({ type: "NewGame" }));
+          post(`/api/room/${room}/reset`, {});
         }}
       >
         New Game

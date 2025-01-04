@@ -66,9 +66,9 @@ function Room() {
     if (type == "Waiting") {
       return <WaitingRoom state={state as WaitingGameState} id={id} />;
     } else if (type == "Playing") {
-      return <Game ws={ws} state={state as PlayingGameState} user={user} />;
+      return <Game state={state as PlayingGameState} ws={ws} user={user} />;
     } else if (type == "Ended") {
-      return <GameResults ws={ws} state={state as EndedGameState} />;
+      return <GameResults state={state as EndedGameState} room={id} />;
     }
   };
 

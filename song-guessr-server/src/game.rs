@@ -1,26 +1,26 @@
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use rand::{seq::SliceRandom, thread_rng, Rng};
-use rspotify::model::{user, FullTrack};
+use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
 use std::mem;
 use std::time::Instant;
 
+const QUESTION_TIMEOUT_IN_SECS: u64 = 10;
+
 #[derive(Debug)]
 pub struct Room {
-    pub owner_id: String,
     pub update_broadcast: tokio::sync::broadcast::Sender<()>,
     pub game: RwLock<GameState>,
     pub users: DashMap<String, User>,
 }
 
 impl Room {
-    pub fn new(owner_id: String) -> Self {
+    pub fn new() -> Self {
         let (update_broadcast, _) = tokio::sync::broadcast::channel(10);
         Self {
-            owner_id,
             update_broadcast,
             game: RwLock::new(GameState::Waiting),
             users: DashMap::new(),
@@ -64,6 +64,17 @@ impl Room {
             current_question: QuestionState::new(),
         });
         let _ = self.update_broadcast.send(());
+    }
+
+    pub fn periodic_update(&self) {
+        let game = self.game.read();
+        if let GameState::Playing(state) = &*game {
+            // end the current question if time is up
+            if state.current_question.timer.elapsed().as_secs() >= QUESTION_TIMEOUT_IN_SECS {
+                drop(game);
+                self.on_question_end();
+            }
+        }
     }
 
     pub fn on_user_join(&self, user_id: &str, user_name: &str) {
