@@ -5,6 +5,7 @@ use rspotify::model::{user, FullTrack};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
+use std::mem;
 use std::time::Instant;
 
 #[derive(Debug)]
@@ -33,12 +34,35 @@ impl Room {
             .collect()
     }
 
+    pub fn on_question_end(&self) {
+        let mut game = self.game.write();
+        if let GameState::Playing(state) = &mut *game {
+            let submissions = mem::take(&mut state.current_question.submissions);
+            for submission in submissions {
+                if let Some(mut user) = self.users.get_mut(&submission.user_id) {
+                    if submission.choice == state.questions[state.current_question.id].ans_id {
+                        user.score += 1;
+                    }
+                }
+            }
+
+            if state.current_question.id + 1 >= state.questions.len() {
+                *game = GameState::Ended;
+            } else {
+                state.current_question.id += 1;
+                state.current_question.timer = Instant::now();
+            }
+
+            let _ = self.update_broadcast.send(()); // ignore broadcast send error
+        }
+    }
+
     pub fn new_game(&self, questions: Vec<Question>) {
         let mut game = self.game.write();
-        *game = GameState::Playing {
+        *game = GameState::Playing(PlayingGameState {
             questions,
             current_question: QuestionState::new(),
-        };
+        });
         let _ = self.update_broadcast.send(());
     }
 
@@ -65,12 +89,15 @@ impl Room {
 }
 
 #[derive(Debug)]
+pub struct PlayingGameState {
+    pub questions: Vec<Question>,
+    pub current_question: QuestionState,
+}
+
+#[derive(Debug)]
 pub enum GameState {
     Waiting,
-    Playing {
-        questions: Vec<Question>,
-        current_question: QuestionState,
-    },
+    Playing(PlayingGameState),
     Ended,
 }
 

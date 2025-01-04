@@ -37,6 +37,10 @@ type WaitingGameState = {
   users: Array<UserGameState>;
 };
 
+type EndedGameState = {
+  users: Array<UserGameState>;
+};
+
 export type {
   Playlist,
   User,
@@ -44,4 +48,5 @@ export type {
   Question,
   PlayingGameState,
   WaitingGameState,
+  EndedGameState,
 };

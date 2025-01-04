@@ -2,9 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import UserForm from "./UserForm";
 import { getUserData } from "./utils";
-import { PlayingGameState, User, WaitingGameState } from "./model";
+import {
+  EndedGameState,
+  PlayingGameState,
+  User,
+  WaitingGameState,
+} from "./model";
 import WaitingRoom from "./WaitingRoom";
 import Game from "./Game";
+import GameResults from "./GameResults";
 
 function getWsUri(room_id: string, user: User): string {
   const url = new URL(
@@ -61,6 +67,8 @@ function Room() {
       return <WaitingRoom state={state as WaitingGameState} id={id} />;
     } else if (type == "Playing") {
       return <Game ws={ws} state={state as PlayingGameState} user={user} />;
+    } else if (type == "Ended") {
+      return <GameResults ws={ws} state={state as EndedGameState} />;
     }
   };
 

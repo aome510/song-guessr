@@ -1,11 +1,7 @@
 use dashmap::DashMap;
 use rspotify::model::SimplifiedPlaylist;
 use serde::{Deserialize, Serialize};
-use std::{
-    mem,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::sync::Arc;
 
 use axum::{
     extract::{
@@ -72,6 +68,7 @@ async fn new_room(
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsClientMessage {
+    NewGame,
     UserSubmitted(game::UserSubmission),
 }
 
@@ -86,7 +83,9 @@ enum WsServerMessage {
         question_id: usize,
         users: Vec<game::User>,
     },
-    Ended,
+    Ended {
+        users: Vec<game::User>,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -134,20 +133,22 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
                 let data = serde_json::to_string(&msg)?;
                 Some(Message::Text(data))
             }
-            game::GameState::Playing {
-                questions,
-                current_question,
-            } => {
+            game::GameState::Playing(state) => {
                 let users = room.active_users();
                 let msg = WsServerMessage::Playing {
-                    question: questions[current_question.id].clone(),
-                    question_id: current_question.id,
+                    question: state.questions[state.current_question.id].clone(),
+                    question_id: state.current_question.id,
                     users,
                 };
                 let data = serde_json::to_string(&msg)?;
                 Some(Message::Text(data))
             }
-            _ => None,
+            &game::GameState::Ended => {
+                let users = room.active_users();
+                let msg = WsServerMessage::Ended { users };
+                let data = serde_json::to_string(&msg)?;
+                Some(Message::Text(data))
+            }
         }
     };
 
@@ -158,37 +159,24 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
     Ok(())
 }
 
-// fn handle_question_end(
-//     current_question: &mut parking_lot::MutexGuard<game::QuestionState>,
-//     game: &game::GameState,
-// ) {
-//     let submissions = mem::take(&mut current_question.submissions);
-//     for submission in submissions {
-//         if let Some(mut user) = game.users.get_mut(&submission.user_id) {
-//             if submission.choice == game.questions[current_question.id].ans_id {
-//                 user.score += 1;
-//             }
-//         }
-//     }
-
-//     current_question.id += 1;
-//     current_question.timer = Instant::now();
-
-//     let _ = game.update.send(()); // ignore broadcast send error
-// }
-
 async fn handle_client_msg(msg: WsClientMessage, room: &game::Room) -> anyhow::Result<()> {
     match msg {
-        // WsClientMessage::UserSubmitted(submission) => {
-        //     let mut current_question = game.current_question.lock();
-        //     current_question.submissions.push(submission);
-
-        //     // end the current question if all users have submitted
-        //     if current_question.submissions.len() == game.users.len() {
-        //         handle_question_end(&mut current_question, game);
-        //     }
-        // }
-        _ => {}
+        WsClientMessage::NewGame => {
+            let mut game = room.game.write();
+            *game = game::GameState::Waiting;
+            let _ = room.update_broadcast.send(());
+        }
+        WsClientMessage::UserSubmitted(submission) => {
+            let mut game = room.game.write();
+            if let game::GameState::Playing(state) = &mut (*game) {
+                state.current_question.submissions.push(submission);
+                // end the current question if all users have submitted
+                if state.current_question.submissions.len() == room.users.len() {
+                    drop(game);
+                    room.on_question_end();
+                }
+            }
+        }
     }
     Ok(())
 }
@@ -217,11 +205,8 @@ async fn handle_socket(
             _ = update_rx.recv() => {
                 on_game_state_update(socket, room).await?;
             }
-            // _ = tokio::time::sleep(polling_interval) => {
-            //     let mut current_question = game.current_question.lock();
-            //     if current_question.timer.elapsed() >= Duration::from_secs(10) {
-            //         handle_question_end(&mut current_question, game);
-            //     }
+                // _ = tokio::time::sleep(polling_interval) => {
+                // room.periodic_update();
             // }
         }
     }
