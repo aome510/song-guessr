@@ -1,24 +1,22 @@
 import { Playlist } from "./model.tsx";
 import { useState } from "react";
 import { get, post } from "./utils.tsx";
-import { useNavigate } from "react-router-dom";
 
-type GameRequest = {
+type NewGameRequest = {
   playlist_id: string;
   num_questions: number;
 };
 
-function Search() {
+const Search: React.FC<{ room: string }> = ({ room }) => {
   const [query, setQuery] = useState<string>("");
   const [results, setResults] = useState<Array<Playlist>>([]);
   const [numQuestions, setNumQuestions] = useState<number>(15);
   const [playlistId, setPlaylistId] = useState<string>("");
-  const navigate = useNavigate();
 
   const searchPlaylists = async () => {
     if (query !== "") {
       try {
-        const response = await get(`api/search?query=${query}`);
+        const response = await get(`/api/search?query=${query}`);
         const data = await response.json();
         console.assert(data instanceof Array, "Expected an array of playlists");
         setPlaylistId("");
@@ -31,14 +29,12 @@ function Search() {
   };
 
   const newGame = async () => {
-    const body: GameRequest = {
+    const body: NewGameRequest = {
       playlist_id: playlistId,
       num_questions: numQuestions,
     };
     try {
-      const response = await post("api/game", body);
-      const data = await response.json();
-      navigate(`/game/${data.game_id}`);
+      await post(`/api/room/${room}/game`, body);
     } catch (err) {
       console.error(err);
     }
@@ -108,6 +104,6 @@ function Search() {
       </form>
     </div>
   );
-}
+};
 
 export default Search;

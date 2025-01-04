@@ -1,7 +1,7 @@
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use rand::{seq::SliceRandom, thread_rng, Rng};
-use rspotify::model::FullTrack;
+use rspotify::model::{user, FullTrack};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
@@ -24,6 +24,43 @@ impl Room {
             game: RwLock::new(GameState::Waiting),
             users: DashMap::new(),
         }
+    }
+
+    pub fn active_users(&self) -> Vec<User> {
+        self.users
+            .iter()
+            .filter_map(|u| if u.online { Some(u.clone()) } else { None })
+            .collect()
+    }
+
+    pub fn new_game(&self, questions: Vec<Question>) {
+        let mut game = self.game.write();
+        *game = GameState::Playing {
+            questions,
+            current_question: QuestionState::new(),
+        };
+        let _ = self.update_broadcast.send(());
+    }
+
+    pub fn on_user_join(&self, user_id: &str, user_name: &str) {
+        match self.users.entry(user_id.to_string()) {
+            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
+                entry.get_mut().online = true;
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert(User::new(user_name.to_string()));
+            }
+        }
+        let _ = self.update_broadcast.send(());
+    }
+
+    pub fn on_user_leave(&self, user_id: &str, remove: bool) {
+        if remove {
+            self.users.remove(user_id);
+        } else if let Some(mut user) = self.users.get_mut(user_id) {
+            user.online = false;
+        }
+        let _ = self.update_broadcast.send(());
     }
 }
 
@@ -58,11 +95,16 @@ impl QuestionState {
 pub struct User {
     pub name: String,
     pub score: u64,
+    pub online: bool,
 }
 
 impl User {
     pub fn new(name: String) -> Self {
-        Self { name, score: 0 }
+        Self {
+            name,
+            score: 0,
+            online: true,
+        }
     }
 }
 

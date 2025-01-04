@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import UserForm from "./UserForm";
 import { getUserData } from "./utils";
-import { PlayingGameState, UserData, WaitingGameState } from "./model";
+import { PlayingGameState, User, WaitingGameState } from "./model";
 import WaitingRoom from "./WaitingRoom";
+import Game from "./Game";
 
-function getWsUri(room_id: string, userData: UserData): string {
+function getWsUri(room_id: string, user: User): string {
   const url = new URL(
-    `api/room/${room_id}?user_id=${userData.id}&user_name=${userData.name}`,
+    `/api/room/${room_id}?user_id=${user.id}&user_name=${user.name}`,
     window.location.origin,
   );
   url.protocol = url.protocol == "https:" ? "wss:" : "ws:";
@@ -16,7 +17,8 @@ function getWsUri(room_id: string, userData: UserData): string {
 
 function Room() {
   const { id } = useParams();
-  const userData = useMemo(() => getUserData(), []);
+  const user = useMemo(() => getUserData(), []);
+  const [ws, setWs] = useState<WebSocket | null>(null);
   const [type, setType] = useState<string>("");
   const [state, setState] = useState<
     PlayingGameState | WaitingGameState | null
@@ -27,37 +29,40 @@ function Room() {
   }
 
   useEffect(() => {
-    if (userData === null) {
+    if (user === null) {
       return;
     }
 
-    const ws = new WebSocket(getWsUri(id, userData));
+    const ws = new WebSocket(getWsUri(id, user));
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-
-      console.log(data);
-
-      if (data.type == "Waiting") {
-        setType("Waiting");
-        setState(data);
-      }
+      setType(data.type);
+      setState(data);
     };
+
+    setWs(ws);
 
     return () => {
       ws.close();
     };
-  }, [id, userData]);
+  }, [id, user]);
+
+  if (user === null) {
+    return <UserForm />;
+  }
+
+  if (ws === null) {
+    return <div>Connecting to the server...</div>;
+  }
 
   const content = () => {
     if (type == "Waiting") {
-      return <WaitingRoom state={state as WaitingGameState} />;
+      return <WaitingRoom state={state as WaitingGameState} id={id} />;
+    } else if (type == "Playing") {
+      return <Game ws={ws} state={state as PlayingGameState} user={user} />;
     }
   };
-
-  if (userData === null) {
-    return <UserForm />;
-  }
 
   return (
     <div>

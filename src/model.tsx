@@ -17,7 +17,7 @@ type Question = {
   song_url: string;
 };
 
-type UserData = {
+type User = {
   id: string;
   name: string;
 };
@@ -39,7 +39,7 @@ type WaitingGameState = {
 
 export type {
   Playlist,
-  UserData,
+  User,
   UserGameState,
   Question,
   PlayingGameState,

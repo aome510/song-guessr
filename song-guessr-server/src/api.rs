@@ -109,20 +109,18 @@ async fn get_room_ws(
         ws.on_upgrade(move |mut socket| async move {
             let update_rx = room.update_broadcast.subscribe();
 
-            if room.users.get(&user_id).is_none() {
-                room.users
-                    .insert(user_id.clone(), game::User::new(user_name));
-                let _ = room.update_broadcast.send(());
-            }
+            room.on_user_join(&user_id, &user_name);
 
             // TODO: properly handle the error
             let _result = handle_socket(&mut socket, &room, update_rx).await;
 
-            room.users.remove(&user_id);
-            let _ = room.update_broadcast.send(());
+            room.on_user_leave(
+                &user_id,
+                matches!(&*room.game.read(), &game::GameState::Waiting { .. }),
+            );
         })
     } else {
-        (StatusCode::NOT_FOUND, "Room not found").into_response()
+        (StatusCode::NOT_FOUND, format!("Room {id} not found")).into_response()
     }
 }
 
@@ -131,8 +129,21 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
         let game = room.game.read();
         match &*game {
             game::GameState::Waiting => {
-                let users = room.users.iter().map(|u| u.value().clone()).collect();
+                let users = room.active_users();
                 let msg = WsServerMessage::Waiting { users };
+                let data = serde_json::to_string(&msg)?;
+                Some(Message::Text(data))
+            }
+            game::GameState::Playing {
+                questions,
+                current_question,
+            } => {
+                let users = room.active_users();
+                let msg = WsServerMessage::Playing {
+                    question: questions[current_question.id].clone(),
+                    question_id: current_question.id,
+                    users,
+                };
                 let data = serde_json::to_string(&msg)?;
                 Some(Message::Text(data))
             }
@@ -143,26 +154,7 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
     if let Some(msg) = msg {
         socket.send(msg).await?;
     }
-    // let current_question_id = game.current_question.lock().id;
-    // match game.questions.get(current_question_id) {
-    //     Some(question) => {
-    //         let users = game.users.iter().map(|u| u.value().clone()).collect();
-    //         let msg = WsServerMessage::GameState {
-    //             question: question.clone(),
-    //             question_id: current_question_id,
-    //             users,
-    //         };
-    //         let data = serde_json::to_string(&msg)?;
-    //         socket.send(Message::Text(data)).await?;
-    //     }
-    //     None => {
-    //         socket
-    //             .send(Message::Text(serde_json::to_string(
-    //                 &WsServerMessage::GameEnded,
-    //             )?))
-    //             .await?;
-    //     }
-    // }
+
     Ok(())
 }
 
@@ -235,6 +227,40 @@ async fn handle_socket(
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+struct NewGameRequest {
+    playlist_id: String,
+    num_questions: Option<usize>,
+}
+
+async fn new_game(
+    Path(id): Path<String>,
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<NewGameRequest>,
+) -> Result<Json<()>, AppError> {
+    let room = if let Some(room) = state.rooms.get(&id) {
+        if !matches!(&*room.game.read(), game::GameState::Waiting) {
+            return Err(anyhow::anyhow!("Game already in progress").into());
+        }
+
+        room.clone()
+    } else {
+        return Err(anyhow::anyhow!("Room {id} not found").into());
+    };
+
+    let NewGameRequest {
+        playlist_id,
+        num_questions,
+    } = request;
+
+    let num_questions = num_questions.unwrap_or(15);
+    let tracks = state.client.playlist_tracks(playlist_id).await?;
+    let questions = game::gen_questions(tracks, num_questions);
+
+    room.new_game(questions);
+
+    Ok(Json(()))
+}
 #[derive(Debug, Deserialize)]
 struct SearchParams {
     query: String,
@@ -256,6 +282,7 @@ pub fn new_app(client: client::Client) -> Router {
     Router::new()
         .route("/room", post(new_room))
         .route("/room/:id", get(get_room_ws))
+        .route("/room/:id/game", post(new_game))
         .route("/search", get(search_playlist))
         .with_state(state)
 }

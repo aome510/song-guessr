@@ -2,7 +2,10 @@ import { WaitingGameState } from "./model";
 import React from "react";
 import Search from "./Search";
 
-const WaitingRoom: React.FC<{ state: WaitingGameState }> = ({ state }) => {
+const WaitingRoom: React.FC<{ state: WaitingGameState; id: string }> = ({
+  state,
+  id,
+}) => {
   return (
     <div>
       <h2>Users</h2>
@@ -11,7 +14,7 @@ const WaitingRoom: React.FC<{ state: WaitingGameState }> = ({ state }) => {
           <li key={user.name}>{user.name}</li>
         ))}
       </ul>
-      <Search />
+      <Search room={id} />
     </div>
   );
 };
