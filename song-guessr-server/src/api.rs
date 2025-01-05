@@ -14,7 +14,10 @@ use axum::{
     Json, Router,
 };
 
-use crate::{client, game};
+use crate::{
+    client,
+    game::{self, Choice},
+};
 
 struct AppState {
     client: client::Client,
@@ -65,13 +68,18 @@ enum WsClientMessage {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsServerMessage {
-    Waiting {
+    WaitingForGame {
         users: Vec<game::User>,
     },
     Playing {
         question: game::Question,
         question_id: usize,
         song_progress_ms: u32,
+        users: Vec<game::User>,
+    },
+    WaitingForNextQuestion {
+        answer: Choice,
+        correct_submissions: Vec<game::UserSubmission>,
         users: Vec<game::User>,
     },
     Ended {
@@ -119,25 +127,44 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
         let game = room.game.read();
         match &*game {
             game::GameState::Waiting => {
-                let users = room.users();
-                let msg = WsServerMessage::Waiting { users };
-                let data = serde_json::to_string(&msg)?;
-                Some(Message::Text(data))
-            }
-            game::GameState::Playing(state) => {
-                let users = room.users();
-                let msg = WsServerMessage::Playing {
-                    question: state.questions[state.current_question.id].clone(),
-                    question_id: state.current_question.id,
-                    song_progress_ms: state.current_question.timer.elapsed().as_millis() as u32,
-                    users,
+                let msg = WsServerMessage::WaitingForGame {
+                    users: room.users(),
                 };
                 let data = serde_json::to_string(&msg)?;
                 Some(Message::Text(data))
             }
+            game::GameState::Playing(state) => match state.question_state.status {
+                game::QuestionStatus::Playing => {
+                    let msg = WsServerMessage::Playing {
+                        question: state.current_question().clone(),
+                        question_id: state.question_state.id,
+                        song_progress_ms: state.question_state.timer.elapsed().as_millis() as u32,
+                        users: room.users(),
+                    };
+                    let data = serde_json::to_string(&msg)?;
+                    Some(Message::Text(data))
+                }
+                game::QuestionStatus::Ended => {
+                    let current_question = state.current_question();
+                    let msg = WsServerMessage::WaitingForNextQuestion {
+                        answer: current_question.choices[current_question.ans_id].clone(),
+                        correct_submissions: state
+                            .question_state
+                            .submissions
+                            .iter()
+                            .filter(|s| s.choice == current_question.ans_id)
+                            .cloned()
+                            .collect(),
+                        users: room.users(),
+                    };
+                    let data = serde_json::to_string(&msg)?;
+                    Some(Message::Text(data))
+                }
+            },
             &game::GameState::Ended => {
-                let users = room.users();
-                let msg = WsServerMessage::Ended { users };
+                let msg = WsServerMessage::Ended {
+                    users: room.users(),
+                };
                 let data = serde_json::to_string(&msg)?;
                 Some(Message::Text(data))
             }
@@ -156,9 +183,9 @@ async fn handle_client_msg(msg: WsClientMessage, room: &game::Room) -> anyhow::R
         WsClientMessage::UserSubmitted(submission) => {
             let mut game = room.game.write();
             if let game::GameState::Playing(state) = &mut (*game) {
-                state.current_question.submissions.push(submission);
+                state.question_state.submissions.push(submission);
                 // end the current question if all users have submitted
-                if state.current_question.submissions.len() == room.users.len() {
+                if state.question_state.submissions.len() == room.users.len() {
                     drop(game);
                     room.on_question_end();
                 }

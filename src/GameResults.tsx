@@ -1,6 +1,7 @@
-import { Button, Flex, Heading, List } from "@chakra-ui/react";
+import { Button, Flex } from "@chakra-ui/react";
 import { EndedGameState } from "./model";
 import { post } from "./utils";
+import Scoreboard from "./components/Scoreboard";
 
 const GameResults: React.FC<{
   room: string;
@@ -8,14 +9,7 @@ const GameResults: React.FC<{
 }> = ({ room, state }) => {
   return (
     <Flex direction="column" gap="4">
-      <Heading size="3xl">Game Results</Heading>
-      <List.Root>
-        {state.users.map((user) => (
-          <List.Item key={user.name}>
-            {user.name}: {user.score}
-          </List.Item>
-        ))}
-      </List.Root>
+      <Scoreboard title="Results" users={state.users} />
       <Button
         onClick={() => {
           post(`/api/room/${room}/reset`, {});

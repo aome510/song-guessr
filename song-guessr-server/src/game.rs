@@ -5,10 +5,10 @@ use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashSet};
-use std::mem;
 use std::time::Instant;
 
-const QUESTION_TIMEOUT_IN_SECS: u64 = 10;
+const QUESTION_TIMEOUT_SECS: u64 = 10;
+const NEXT_QUESTION_WAIT_TIME_MS: u128 = 1500;
 
 #[derive(Debug)]
 pub struct Room {
@@ -34,23 +34,29 @@ impl Room {
     pub fn on_question_end(&self) {
         let mut game = self.game.write();
         if let GameState::Playing(state) = &mut *game {
-            let submissions = mem::take(&mut state.current_question.submissions);
-            for submission in submissions {
+            for submission in &state.question_state.submissions {
                 if let Some(mut user) = self.users.get_mut(&submission.user_id) {
-                    if submission.choice == state.questions[state.current_question.id].ans_id {
+                    if submission.choice == state.current_question().ans_id {
                         user.score += 1;
                     }
                 }
             }
 
-            if state.current_question.id + 1 >= state.questions.len() {
+            state.question_state.end_question();
+            let _ = self.update_broadcast.send(()); // ignore broadcast send error
+        }
+    }
+
+    pub fn on_question_next(&self) {
+        let mut game = self.game.write();
+        if let GameState::Playing(state) = &mut *game {
+            if state.question_state.id == state.questions.len() - 1 {
                 *game = GameState::Ended;
             } else {
-                state.current_question.id += 1;
-                state.current_question.timer = Instant::now();
+                state.question_state.next_question();
             }
 
-            let _ = self.update_broadcast.send(()); // ignore broadcast send error
+            let _ = self.update_broadcast.send(());
         }
     }
 
@@ -58,18 +64,26 @@ impl Room {
         let mut game = self.game.write();
         *game = GameState::Playing(PlayingGameState {
             questions,
-            current_question: QuestionState::new(),
+            question_state: QuestionState::new(),
         });
         let _ = self.update_broadcast.send(());
     }
 
     pub fn periodic_update(&self) {
         let game = self.game.read();
+
         if let GameState::Playing(state) = &*game {
-            // end the current question if time is up
-            if state.current_question.timer.elapsed().as_secs() > QUESTION_TIMEOUT_IN_SECS {
+            if state.question_state.status == QuestionStatus::Playing {
+                // end the current question if time is up
+                if state.question_state.timer.elapsed().as_secs() > QUESTION_TIMEOUT_SECS {
+                    drop(game);
+                    self.on_question_end();
+                }
+            } else if state.question_state.timer.elapsed().as_millis() > NEXT_QUESTION_WAIT_TIME_MS
+            {
+                // move to the next question if time is up
                 drop(game);
-                self.on_question_end();
+                self.on_question_next();
             }
         }
     }
@@ -99,7 +113,13 @@ impl Room {
 #[derive(Debug)]
 pub struct PlayingGameState {
     pub questions: Vec<Question>,
-    pub current_question: QuestionState,
+    pub question_state: QuestionState,
+}
+
+impl PlayingGameState {
+    pub fn current_question(&self) -> &Question {
+        &self.questions[self.question_state.id]
+    }
 }
 
 #[derive(Debug)]
@@ -109,11 +129,18 @@ pub enum GameState {
     Ended,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum QuestionStatus {
+    Playing,
+    Ended,
+}
+
 #[derive(Debug)]
 pub struct QuestionState {
     pub id: usize,
     pub submissions: Vec<UserSubmission>,
     pub timer: Instant,
+    pub status: QuestionStatus,
 }
 
 impl QuestionState {
@@ -122,7 +149,20 @@ impl QuestionState {
             id: 0,
             submissions: Vec::new(),
             timer: Instant::now(),
+            status: QuestionStatus::Playing,
         }
+    }
+
+    pub fn end_question(&mut self) {
+        self.timer = Instant::now();
+        self.status = QuestionStatus::Ended;
+    }
+
+    pub fn next_question(&mut self) {
+        self.id += 1;
+        self.submissions.clear();
+        self.timer = Instant::now();
+        self.status = QuestionStatus::Playing;
     }
 }
 
@@ -143,10 +183,12 @@ impl User {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSubmission {
     pub user_id: String,
     pub choice: usize,
+    // user submission timestamp in ms w.r.t the start of the question
+    pub submitted_at_ms: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

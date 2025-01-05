@@ -34,6 +34,17 @@ type PlayingGameState = {
   users: Array<UserGameState>;
 };
 
+type UserSubmission = {
+  user_id: string;
+  submitted_at_ms: number;
+};
+
+type WaitingForNextQuestionState = {
+  answer: Choice;
+  correct_submissions: Array<UserSubmission>;
+  users: Array<UserGameState>;
+};
+
 type WaitingGameState = {
   users: Array<UserGameState>;
 };
@@ -49,5 +60,6 @@ export type {
   Question,
   PlayingGameState,
   WaitingGameState,
+  WaitingForNextQuestionState,
   EndedGameState,
 };

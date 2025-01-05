@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayingGameState, Question, User, UserGameState } from "./model.tsx";
-import { Button, Flex, Heading, List, Progress } from "@chakra-ui/react";
+import { Button, Flex, Heading, Progress } from "@chakra-ui/react";
 import { post } from "./utils.tsx";
+import Scoreboard from "./components/Scoreboard.tsx";
 
 const Game: React.FC<{
   ws: WebSocket;
@@ -51,6 +52,7 @@ const Game: React.FC<{
         type: "UserSubmitted",
         user_id: user.id,
         choice: selectedChoice,
+        submitted_at_ms: Math.round(audio.currentTime * 1000),
       }),
     );
   };
@@ -123,14 +125,7 @@ const Game: React.FC<{
         ))}
       </Flex>
 
-      <Heading size="xl">Scoreboard</Heading>
-      <List.Root>
-        {users.map((user) => (
-          <List.Item key={user.name}>
-            {user.name}: {user.score}
-          </List.Item>
-        ))}
-      </List.Root>
+      <Scoreboard title="Scoreboard" users={users} />
 
       <Button
         onClick={() => {
