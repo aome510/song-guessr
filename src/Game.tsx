@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayingGameState, Question, User, UserGameState } from "./model.tsx";
-import { Button, Heading, List, Progress } from "@chakra-ui/react";
+import { Button, Flex, Heading, List, Progress } from "@chakra-ui/react";
 import { post } from "./utils.tsx";
 
 const Game: React.FC<{
@@ -58,8 +58,9 @@ const Game: React.FC<{
   }
 
   return (
-    <div>
-      <Heading size="4xl">Question {questionId + 1}</Heading>
+    <Flex direction="column" gap="4">
+      <Heading size="3xl">Question {questionId + 1}</Heading>
+
       <Progress.Root
         value={(audioCurrentTime / 10) * 100}
         colorPalette="green"
@@ -69,23 +70,27 @@ const Game: React.FC<{
           <Progress.Range />
         </Progress.Track>
       </Progress.Root>
-      {question.choices.map((choice, index) => (
-        <Button
-          key={index}
-          type="button"
-          onClick={() => handleChoiceSubmit(index)}
-          disabled={selectedChoice !== null}
-          style={{
-            backgroundColor: selectedChoice === index ? "blue" : "gray",
-            color: "white",
-            margin: "5px",
-            padding: "10px",
-          }}
-        >
-          {choice.name}
-        </Button>
-      ))}
-      <Heading size="4xl">Scoreboard</Heading>
+
+      <Flex direction="column">
+        {question.choices.map((choice, index) => (
+          <Button
+            key={index}
+            type="button"
+            onClick={() => handleChoiceSubmit(index)}
+            disabled={selectedChoice !== null}
+            style={{
+              backgroundColor: selectedChoice === index ? "blue" : "gray",
+              color: "white",
+              margin: "5px",
+              padding: "10px",
+            }}
+          >
+            {choice.name}
+          </Button>
+        ))}
+      </Flex>
+
+      <Heading size="3xl">Scoreboard</Heading>
       <List.Root>
         {users.map((user) => (
           <List.Item key={user.name}>
@@ -93,6 +98,7 @@ const Game: React.FC<{
           </List.Item>
         ))}
       </List.Root>
+
       <Button
         onClick={() => {
           post(`/api/room/${room}/reset`, {});
@@ -100,7 +106,7 @@ const Game: React.FC<{
       >
         Back to waiting room
       </Button>
-    </div>
+    </Flex>
   );
 };
 

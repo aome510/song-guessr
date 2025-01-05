@@ -24,9 +24,16 @@ function HomePage() {
   };
 
   return (
-    <Flex h="100vh" direction="column">
+    <Flex
+      h="100vh"
+      w="100vw"
+      direction="column"
+      justifyContent="center"
+      alignItems="center"
+      gap="4"
+    >
       <Heading size="6xl">Song Guessr</Heading>
-      <Text textStyle="3xl">Welcome, {user.name}</Text>
+      <Text textStyle="2xl">Welcome, {user.name}</Text>
       <Button onClick={newRoom}>Create a new room</Button>
     </Flex>
   );

@@ -76,9 +76,11 @@ function Room() {
   };
 
   return (
-    <Flex h="100vh" direction="column">
-      <Heading size="6xl">Room {id}</Heading>
-      <div>{content()}</div>
+    <Flex w="100vw" justifyContent="center">
+      <Flex h="100vh" direction="column" justifyContent="center" gap="4">
+        <Heading size="6xl">Room {id}</Heading>
+        {content()}
+      </Flex>
     </Flex>
   );
 }

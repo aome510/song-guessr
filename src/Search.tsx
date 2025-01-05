@@ -8,8 +8,10 @@ import {
   Field,
   Select,
   Button,
+  Flex,
 } from "@chakra-ui/react";
-import LoadingPopup from "./LoadingPopup.tsx";
+import { Radio, RadioGroup } from "./components/ui/radio.tsx";
+import LoadingPopup from "./components/LoadingPopup.tsx";
 
 type NewGameRequest = {
   playlist_id: string;
@@ -60,8 +62,8 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
 
   return (
     <div>
-      <LoadingPopup loading={loading} />
-      <Heading size="4xl">Search for playlist</Heading>
+      <Heading size="3xl">Search for playlist</Heading>
+
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -70,36 +72,39 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
           setLoading(false);
         }}
       >
-        <Field.Root>
-          <Field.Label>Search</Field.Label>
-          <Input
-            type="text"
-            onChange={(e) => {
-              setQuery(e.target.value);
+        <Flex gap="3" direction="column">
+          <Field.Root>
+            <Field.Label>Search</Field.Label>
+            <Input
+              type="text"
+              onChange={(e) => {
+                setQuery(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault(); // prevent form submission on Enter
+                  searchPlaylists();
+                }
+              }}
+            />
+          </Field.Root>
+
+          <RadioGroup
+            value={playlistId}
+            onValueChange={(e) => {
+              setPlaylistId(e.value);
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault(); // prevent form submission on Enter
-                searchPlaylists();
-              }
-            }}
-          />
-        </Field.Root>
-        {results.slice(0, 10).map((result) => (
-          <div key={result.id}>
-            <label>
-              <input
-                type="radio"
-                name="radioGroup"
-                checked={playlistId === result.id}
-                onChange={() => setPlaylistId(result.id)}
-              />
-              {result.name} by {result.owner.display_name}
-            </label>
-          </div>
-        ))}
-        {results.length > 0 && (
-          <div>
+          >
+            <Flex direction="column" gap="1">
+              {results.slice(0, 10).map((result) => (
+                <Radio key={result.id} value={result.id}>
+                  {result.name} by {result.owner.display_name}
+                </Radio>
+              ))}
+            </Flex>
+          </RadioGroup>
+
+          {results.length > 0 && (
             <Select.Root
               collection={numQuestionsChoices}
               // @ts-expect-error: value of Select component is array of numbers
@@ -120,12 +125,17 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
                 ))}
               </Select.Content>
             </Select.Root>
+          )}
+
+          {results.length > 0 && (
             <Button type="submit" disabled={playlistId === ""}>
               Submit
             </Button>
-          </div>
-        )}
+          )}
+        </Flex>
       </form>
+
+      <LoadingPopup loading={loading} />
     </div>
   );
 };
