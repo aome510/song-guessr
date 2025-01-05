@@ -9,6 +9,7 @@ import {
   Select,
   Button,
 } from "@chakra-ui/react";
+import LoadingPopup from "./LoadingPopup.tsx";
 
 type NewGameRequest = {
   playlist_id: string;
@@ -26,13 +27,16 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
   const [results, setResults] = useState<Array<Playlist>>([]);
   const [numQuestions, setNumQuestions] = useState<number>(15);
   const [playlistId, setPlaylistId] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
 
   const searchPlaylists = async () => {
     if (query !== "") {
       try {
+        setLoading(true);
         const response = await get(`/api/search?query=${query}`);
         const data = await response.json();
-        console.assert(data instanceof Array, "Expected an array of playlists");
+        setLoading(false);
+
         setPlaylistId("");
         setResults(data);
         setNumQuestions(15);
@@ -56,11 +60,14 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
 
   return (
     <div>
+      <LoadingPopup loading={loading} />
       <Heading size="4xl">Search for playlist</Heading>
       <form
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
-          newGame();
+          setLoading(true);
+          await newGame();
+          setLoading(false);
         }}
       >
         <Field.Root>
