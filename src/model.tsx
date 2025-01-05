@@ -30,6 +30,7 @@ type UserGameState = {
 type PlayingGameState = {
   question: Question;
   question_id: number;
+  song_progress_ms: number;
   users: Array<UserGameState>;
 };
 

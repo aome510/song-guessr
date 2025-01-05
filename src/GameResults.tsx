@@ -1,3 +1,4 @@
+import { Button, Flex, Heading, List } from "@chakra-ui/react";
 import { EndedGameState } from "./model";
 import { post } from "./utils";
 
@@ -6,23 +7,23 @@ const GameResults: React.FC<{
   state: EndedGameState;
 }> = ({ room, state }) => {
   return (
-    <div>
-      <h2>Game Results</h2>
-      <ul>
+    <Flex direction="column" gap="4">
+      <Heading size="3xl">Game Results</Heading>
+      <List.Root>
         {state.users.map((user) => (
-          <li key={user.name}>
+          <List.Item key={user.name}>
             {user.name}: {user.score}
-          </li>
+          </List.Item>
         ))}
-      </ul>
-      <button
+      </List.Root>
+      <Button
         onClick={() => {
           post(`/api/room/${room}/reset`, {});
         }}
       >
         New Game
-      </button>
-    </div>
+      </Button>
+    </Flex>
   );
 };
 

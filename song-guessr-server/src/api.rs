@@ -71,6 +71,7 @@ enum WsServerMessage {
     Playing {
         question: game::Question,
         question_id: usize,
+        song_progress_ms: u32,
         users: Vec<game::User>,
     },
     Ended {
@@ -118,23 +119,24 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
         let game = room.game.read();
         match &*game {
             game::GameState::Waiting => {
-                let users = room.active_users();
+                let users = room.users();
                 let msg = WsServerMessage::Waiting { users };
                 let data = serde_json::to_string(&msg)?;
                 Some(Message::Text(data))
             }
             game::GameState::Playing(state) => {
-                let users = room.active_users();
+                let users = room.users();
                 let msg = WsServerMessage::Playing {
                     question: state.questions[state.current_question.id].clone(),
                     question_id: state.current_question.id,
+                    song_progress_ms: state.current_question.timer.elapsed().as_millis() as u32,
                     users,
                 };
                 let data = serde_json::to_string(&msg)?;
                 Some(Message::Text(data))
             }
             &game::GameState::Ended => {
-                let users = room.active_users();
+                let users = room.users();
                 let msg = WsServerMessage::Ended { users };
                 let data = serde_json::to_string(&msg)?;
                 Some(Message::Text(data))
@@ -202,6 +204,10 @@ async fn reset_room(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<()>, AppError> {
     if let Some(room) = state.rooms.get(&id) {
+        room.users.retain(|_, u| u.online);
+        for mut user in room.users.iter_mut() {
+            user.score = 0;
+        }
         let mut game = room.game.write();
         *game = game::GameState::Waiting;
         let _ = room.update_broadcast.send(());

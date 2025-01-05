@@ -27,11 +27,8 @@ impl Room {
         }
     }
 
-    pub fn active_users(&self) -> Vec<User> {
-        self.users
-            .iter()
-            .filter_map(|u| if u.online { Some(u.clone()) } else { None })
-            .collect()
+    pub fn users(&self) -> Vec<User> {
+        self.users.iter().map(|u| u.value().clone()).collect()
     }
 
     pub fn on_question_end(&self) {
