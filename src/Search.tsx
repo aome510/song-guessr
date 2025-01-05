@@ -127,10 +127,8 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
             </Select.Root>
           )}
 
-          {results.length > 0 && (
-            <Button type="submit" disabled={playlistId === ""}>
-              Submit
-            </Button>
+          {results.length > 0 && playlistId !== "" && (
+            <Button type="submit">New Game</Button>
           )}
         </Flex>
       </form>

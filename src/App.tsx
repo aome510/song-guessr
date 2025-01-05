@@ -2,6 +2,7 @@ import { Route, BrowserRouter, Routes } from "react-router-dom";
 import Room from "./Room.tsx";
 import HomePage from "./HomePage.tsx";
 import { ChakraProvider, defaultSystem, Heading } from "@chakra-ui/react";
+import "./App.css";
 
 const NotFound = () => <Heading size="6xl">404 - Page Not Found</Heading>;
 
