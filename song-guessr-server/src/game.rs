@@ -67,7 +67,7 @@ impl Room {
         let game = self.game.read();
         if let GameState::Playing(state) = &*game {
             // end the current question if time is up
-            if state.current_question.timer.elapsed().as_secs() >= QUESTION_TIMEOUT_IN_SECS {
+            if state.current_question.timer.elapsed().as_secs() > QUESTION_TIMEOUT_IN_SECS {
                 drop(game);
                 self.on_question_end();
             }

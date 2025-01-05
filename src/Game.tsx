@@ -10,10 +10,12 @@ const Game: React.FC<{
   room: string;
 }> = ({ ws, state, user, room }) => {
   const [users, setUsers] = useState<Array<UserGameState>>([]);
+  // doesn't set to be state.question_id to trigger the update defined in the later useEffect
   const [questionId, setQuestionId] = useState<number>(-1);
-  const [question, setQuestion] = useState<Question | null>(null);
+  const [question, setQuestion] = useState<Question>(state.question);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
+  const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
   const audio = useMemo(() => new Audio(), []);
 
   useEffect(() => {
@@ -53,15 +55,48 @@ const Game: React.FC<{
     );
   };
 
-  if (question === null) {
-    return <div>Loading...</div>;
+  useEffect(() => {
+    const checkAutoPlayable = async () => {
+      if (questionId != -1) {
+        try {
+          if (audio.paused) {
+            await audio.play();
+          }
+          setAudioPlayable(true);
+        } catch {
+          setAudioPlayable(false);
+        }
+      }
+    };
+
+    checkAutoPlayable();
+  }, [questionId, audio]);
+
+  // this is a hack to get the audio to play on the first render
+  // because the audio autoplay must be triggered by a user gesture
+  // more details: see https://developer.chrome.com/blog/autoplay/
+  if (!audioPlayable) {
+    return (
+      <Button
+        padding="2"
+        onClick={() => {
+          audio.play();
+          setAudioPlayable(true);
+        }}
+      >
+        Press to continue
+      </Button>
+    );
   }
 
   return (
     <Flex direction="column" gap="4">
       <Heading size="xl">Question {questionId + 1}</Heading>
 
-      <Progress.Root value={(audioCurrentTime / 10) * 100} colorPalette="green">
+      <Progress.Root
+        value={Math.min(100, (audioCurrentTime / 10) * 100)}
+        colorPalette="green"
+      >
         <Progress.Track>
           <Progress.Range />
         </Progress.Track>
