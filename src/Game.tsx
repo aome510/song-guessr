@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayingGameState, Question, User, UserGameState } from "./model.tsx";
-import { Button, Heading, List } from "@chakra-ui/react";
+import { Button, Heading, List, Progress } from "@chakra-ui/react";
 import { post } from "./utils.tsx";
 
 const Game: React.FC<{
@@ -13,6 +13,7 @@ const Game: React.FC<{
   const [questionId, setQuestionId] = useState<number>(-1);
   const [question, setQuestion] = useState<Question | null>(null);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
+  const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
   const audio = useMemo(() => new Audio(), []);
 
   useEffect(() => {
@@ -32,6 +33,9 @@ const Game: React.FC<{
   useEffect(() => {
     audio.autoplay = true;
     audio.volume = 0.5;
+    audio.ontimeupdate = () => {
+      setAudioCurrentTime(audio.currentTime);
+    };
     return () => {
       audio.pause();
       audio.src = "";
@@ -56,6 +60,15 @@ const Game: React.FC<{
   return (
     <div>
       <Heading size="4xl">Question {questionId + 1}</Heading>
+      <Progress.Root
+        value={(audioCurrentTime / 10) * 100}
+        colorPalette="green"
+        width="xl"
+      >
+        <Progress.Track>
+          <Progress.Range />
+        </Progress.Track>
+      </Progress.Root>
       {question.choices.map((choice, index) => (
         <Button
           key={index}
