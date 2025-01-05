@@ -61,29 +61,27 @@ const Game: React.FC<{
     <Flex direction="column" gap="4">
       <Heading size="xl">Question {questionId + 1}</Heading>
 
-      <Progress.Root
-        value={(audioCurrentTime / 10) * 100}
-        colorPalette="green"
-        width="l"
-      >
+      <Progress.Root value={(audioCurrentTime / 10) * 100} colorPalette="green">
         <Progress.Track>
           <Progress.Range />
         </Progress.Track>
       </Progress.Root>
 
-      <Flex direction="column">
+      <Flex direction="column" alignItems="center">
         {question.choices.map((choice, index) => (
           <Button
             key={index}
             type="button"
             onClick={() => handleChoiceSubmit(index)}
             disabled={selectedChoice !== null}
-            style={{
-              backgroundColor: selectedChoice === index ? "blue" : "gray",
-              color: "white",
-              margin: "5px",
-              padding: "10px",
-            }}
+            height="auto"
+            width="15em"
+            wordWrap="break-word"
+            whiteSpace="normal"
+            backgroundColor={selectedChoice === index ? "blue" : "gray"}
+            color="white"
+            margin="1"
+            padding="2"
           >
             {choice.name}
           </Button>
