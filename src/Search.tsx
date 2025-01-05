@@ -62,7 +62,7 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
 
   return (
     <div>
-      <Heading size="3xl">Search for playlist</Heading>
+      <Heading size="xl">Search for playlist</Heading>
 
       <form
         onSubmit={async (e) => {

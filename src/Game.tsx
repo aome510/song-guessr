@@ -59,12 +59,12 @@ const Game: React.FC<{
 
   return (
     <Flex direction="column" gap="4">
-      <Heading size="3xl">Question {questionId + 1}</Heading>
+      <Heading size="xl">Question {questionId + 1}</Heading>
 
       <Progress.Root
         value={(audioCurrentTime / 10) * 100}
         colorPalette="green"
-        width="xl"
+        width="l"
       >
         <Progress.Track>
           <Progress.Range />
@@ -90,7 +90,7 @@ const Game: React.FC<{
         ))}
       </Flex>
 
-      <Heading size="3xl">Scoreboard</Heading>
+      <Heading size="xl">Scoreboard</Heading>
       <List.Root>
         {users.map((user) => (
           <List.Item key={user.name}>

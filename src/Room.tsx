@@ -78,7 +78,7 @@ function Room() {
   return (
     <Flex w="100vw" justifyContent="center">
       <Flex h="100vh" direction="column" justifyContent="center" gap="4">
-        <Heading size="6xl">Room {id}</Heading>
+        <Heading size="3xl">Room {id}</Heading>
         {content()}
       </Flex>
     </Flex>
