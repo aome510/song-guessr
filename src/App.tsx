@@ -1,20 +1,22 @@
 import { Route, BrowserRouter, Routes } from "react-router-dom";
-import "./App.css";
 import Room from "./Room.tsx";
 import HomePage from "./HomePage.tsx";
+import { ChakraProvider, defaultSystem, Heading } from "@chakra-ui/react";
 
-const NotFound = () => <h1>404 - Page Not Found</h1>;
+const NotFound = () => <Heading size="6xl">404 - Page Not Found</Heading>;
 
 function App() {
   return (
     <>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/room/:id" element={<Room />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <ChakraProvider value={defaultSystem}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/room/:id" element={<Room />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </ChakraProvider>
     </>
   );
 }

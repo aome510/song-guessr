@@ -1,11 +1,25 @@
 import { Playlist } from "./model.tsx";
 import { useState } from "react";
 import { get, post } from "./utils.tsx";
+import {
+  createListCollection,
+  Heading,
+  Input,
+  Field,
+  Select,
+  Button,
+} from "@chakra-ui/react";
 
 type NewGameRequest = {
   playlist_id: string;
   num_questions: number;
 };
+
+const numQuestionsChoices = createListCollection({
+  items: Array.from({ length: 30 }, (_, i) => {
+    return { value: i + 1 };
+  }),
+});
 
 const Search: React.FC<{ room: string }> = ({ room }) => {
   const [query, setQuery] = useState<string>("");
@@ -42,16 +56,16 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
 
   return (
     <div>
-      <h2>Search for playlist</h2>
+      <Heading size="4xl">Search for playlist</Heading>
       <form
         onSubmit={(e) => {
           e.preventDefault();
           newGame();
         }}
       >
-        <label>
-          Query:
-          <input
+        <Field.Root>
+          <Field.Label>Search</Field.Label>
+          <Input
             type="text"
             onChange={(e) => {
               setQuery(e.target.value);
@@ -63,7 +77,7 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
               }
             }}
           />
-        </label>
+        </Field.Root>
         {results.slice(0, 10).map((result) => (
           <div key={result.id}>
             <label>
@@ -79,26 +93,29 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
         ))}
         {results.length > 0 && (
           <div>
-            <div>
-              <label>
-                Number of Questions:
-                <select
-                  value={numQuestions}
-                  onChange={(e) => setNumQuestions(Number(e.target.value))}
-                >
-                  {Array.from({ length: 30 }, (_, i) => i + 1).map((num) => (
-                    <option key={num} value={num}>
-                      {num}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div>
-              <button type="submit" disabled={playlistId === ""}>
-                Submit
-              </button>
-            </div>
+            <Select.Root
+              collection={numQuestionsChoices}
+              // @ts-expect-error: value of Select component is array of numbers
+              value={[numQuestions]}
+              onValueChange={(e) => {
+                setNumQuestions(e.items[0].value);
+              }}
+            >
+              <Select.Label>Number of questions</Select.Label>
+              <Select.Trigger>
+                <Select.ValueText />
+              </Select.Trigger>
+              <Select.Content>
+                {numQuestionsChoices.items.map((item) => (
+                  <Select.Item color="black" item={item} key={item.value}>
+                    {item.value}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+            <Button type="submit" disabled={playlistId === ""}>
+              Submit
+            </Button>
           </div>
         )}
       </form>

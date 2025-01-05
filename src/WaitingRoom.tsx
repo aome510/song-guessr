@@ -1,6 +1,7 @@
 import { WaitingGameState } from "./model";
 import React from "react";
 import Search from "./Search";
+import { Heading, List } from "@chakra-ui/react";
 
 const WaitingRoom: React.FC<{ state: WaitingGameState; id: string }> = ({
   state,
@@ -8,12 +9,12 @@ const WaitingRoom: React.FC<{ state: WaitingGameState; id: string }> = ({
 }) => {
   return (
     <div>
-      <h2>Users</h2>
-      <ul>
-        {state.users.map((user) => (
-          <li key={user.name}>{user.name}</li>
+      <Heading size="4xl">Users</Heading>
+      <List.Root>
+        {state.users.map((user, i) => (
+          <List.Item key={i}>{user.name}</List.Item>
         ))}
-      </ul>
+      </List.Root>
       <Search room={id} />
     </div>
   );

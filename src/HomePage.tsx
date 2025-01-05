@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import UserForm from "./UserForm";
 import { getUserData, post } from "./utils";
+import { Button, Flex, Heading, Text } from "@chakra-ui/react";
 
 function HomePage() {
   const user = getUserData();
@@ -10,8 +11,7 @@ function HomePage() {
     return <UserForm />;
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const newRoom = async () => {
     try {
       const response = await post("/api/room", {
         user_id: user.id,
@@ -24,13 +24,11 @@ function HomePage() {
   };
 
   return (
-    <div>
-      <h1>Song Guessr</h1>
-      <h2>Welcome, {user.name}</h2>
-      <form onSubmit={handleSubmit}>
-        <button type="submit">Create a new room</button>
-      </form>
-    </div>
+    <Flex h="100vh" direction="column">
+      <Heading size="6xl">Song Guessr</Heading>
+      <Text textStyle="3xl">Welcome, {user.name}</Text>
+      <Button onClick={newRoom}>Create a new room</Button>
+    </Flex>
   );
 }
 

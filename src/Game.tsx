@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayingGameState, Question, User, UserGameState } from "./model.tsx";
+import { Button, Heading, List } from "@chakra-ui/react";
+import { post } from "./utils.tsx";
 
 const Game: React.FC<{
   ws: WebSocket;
   state: PlayingGameState;
   user: User;
-}> = ({ ws, state, user }) => {
+  room: string;
+}> = ({ ws, state, user, room }) => {
   const [users, setUsers] = useState<Array<UserGameState>>([]);
   const [questionId, setQuestionId] = useState<number>(-1);
   const [question, setQuestion] = useState<Question | null>(null);
@@ -18,6 +21,7 @@ const Game: React.FC<{
       setQuestion(state.question);
       setSelectedChoice(null);
       audio.src = state.question.song_url;
+      audio.currentTime = state.song_progress_ms / 1000;
     }
 
     if (state.users !== users) {
@@ -51,9 +55,9 @@ const Game: React.FC<{
 
   return (
     <div>
-      <h2>Question {questionId + 1}</h2>
+      <Heading size="4xl">Question {questionId + 1}</Heading>
       {question.choices.map((choice, index) => (
-        <button
+        <Button
           key={index}
           type="button"
           onClick={() => handleChoiceSubmit(index)}
@@ -66,16 +70,23 @@ const Game: React.FC<{
           }}
         >
           {choice.name}
-        </button>
+        </Button>
       ))}
-      <h2>Scoreboard</h2>
-      <ul>
+      <Heading size="4xl">Scoreboard</Heading>
+      <List.Root>
         {users.map((user) => (
-          <li key={user.name}>
+          <List.Item key={user.name}>
             {user.name}: {user.score}
-          </li>
+          </List.Item>
         ))}
-      </ul>
+      </List.Root>
+      <Button
+        onClick={() => {
+          post(`/api/room/${room}/reset`, {});
+        }}
+      >
+        Back to waiting room
+      </Button>
     </div>
   );
 };

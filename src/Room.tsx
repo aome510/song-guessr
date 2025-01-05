@@ -11,6 +11,7 @@ import {
 import WaitingRoom from "./WaitingRoom";
 import Game from "./Game";
 import GameResults from "./GameResults";
+import { Flex, Heading } from "@chakra-ui/react";
 
 function getWsUri(room_id: string, user: User): string {
   const url = new URL(
@@ -66,17 +67,19 @@ function Room() {
     if (type == "Waiting") {
       return <WaitingRoom state={state as WaitingGameState} id={id} />;
     } else if (type == "Playing") {
-      return <Game state={state as PlayingGameState} ws={ws} user={user} />;
+      return (
+        <Game state={state as PlayingGameState} ws={ws} user={user} room={id} />
+      );
     } else if (type == "Ended") {
       return <GameResults state={state as EndedGameState} room={id} />;
     }
   };
 
   return (
-    <div>
-      <h1>Room {id}</h1>
+    <Flex h="100vh" direction="column">
+      <Heading size="6xl">Room {id}</Heading>
       <div>{content()}</div>
-    </div>
+    </Flex>
   );
 }
 
