@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import UserForm from "./UserForm";
+import UserForm from "./components/UserForm";
 import { getUserData, post } from "./utils";
 import { Button, Flex, Heading, Text } from "@chakra-ui/react";
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import UserForm from "./UserForm";
+import UserForm from "./components/UserForm";
 import { getUserData } from "./utils";
 import {
   EndedGameState,
