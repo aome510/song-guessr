@@ -1,3 +1,4 @@
+import { Button, Field, Flex, Heading, Input } from "@chakra-ui/react";
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 
@@ -5,28 +6,29 @@ function UserForm() {
   const [userName, setUserName] = useState("");
 
   return (
-    <div>
-      <h2>Please provide your username</h2>
+    <Flex direction="column" gap="4">
+      <Heading size="xl">Please provide your username</Heading>
       <form
         onSubmit={() => {
           localStorage.setItem("userId", uuidv4());
           localStorage.setItem("userName", userName);
         }}
       >
-        <label>
-          Username:
-          <input
+        <Field.Root>
+          <Field.Label>Username</Field.Label>
+          <Input
             type="text"
-            value={userName}
             onChange={(e) => {
               setUserName(e.target.value);
             }}
             required
           />
-        </label>
-        <button type="submit">Submit</button>
+        </Field.Root>
+        <Button type="submit" mt="2">
+          Submit
+        </Button>
       </form>
-    </div>
+    </Flex>
   );
 }
 

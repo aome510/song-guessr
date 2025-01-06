@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayingGameState, Question, User, UserGameState } from "./model.tsx";
-import { Button, Flex, Heading, List, Progress } from "@chakra-ui/react";
+import { Button, Flex, Progress, Text } from "@chakra-ui/react";
 import { post } from "./utils.tsx";
+import Scoreboard from "./components/Scoreboard.tsx";
 
 const Game: React.FC<{
   ws: WebSocket;
@@ -10,10 +11,12 @@ const Game: React.FC<{
   room: string;
 }> = ({ ws, state, user, room }) => {
   const [users, setUsers] = useState<Array<UserGameState>>([]);
+  // doesn't set to be state.question_id to trigger the update defined in the later useEffect
   const [questionId, setQuestionId] = useState<number>(-1);
-  const [question, setQuestion] = useState<Question | null>(null);
+  const [question, setQuestion] = useState<Question>(state.question);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
+  const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
   const audio = useMemo(() => new Audio(), []);
 
   useEffect(() => {
@@ -47,64 +50,94 @@ const Game: React.FC<{
     ws.send(
       JSON.stringify({
         type: "UserSubmitted",
+        user_name: user.name,
         user_id: user.id,
         choice: selectedChoice,
+        submitted_at_ms: Math.round(audio.currentTime * 1000),
       }),
     );
   };
 
-  if (question === null) {
-    return <div>Loading...</div>;
+  useEffect(() => {
+    const checkAutoPlayable = async () => {
+      if (questionId != -1) {
+        try {
+          if (audio.paused) {
+            await audio.play();
+          }
+          setAudioPlayable(true);
+        } catch {
+          setAudioPlayable(false);
+        }
+      }
+    };
+
+    checkAutoPlayable();
+  }, [questionId, audio]);
+
+  // this is a hack to get the audio to play on the first render
+  // because the audio autoplay must be triggered by a user gesture
+  // more details: see https://developer.chrome.com/blog/autoplay/
+  if (!audioPlayable) {
+    return (
+      <Button
+        padding="2"
+        onClick={() => {
+          audio.play();
+          setAudioPlayable(true);
+        }}
+      >
+        Press to continue
+      </Button>
+    );
   }
 
   return (
     <Flex direction="column" gap="4">
-      <Heading size="3xl">Question {questionId + 1}</Heading>
+      <Text textStyle="xl">
+        Question {questionId + 1} ({question.score})
+      </Text>
 
-      <Progress.Root
-        value={(audioCurrentTime / 10) * 100}
-        colorPalette="green"
-        width="xl"
-      >
-        <Progress.Track>
-          <Progress.Range />
-        </Progress.Track>
-      </Progress.Root>
+      {!audio.paused && (
+        <Progress.Root
+          value={Math.min(100, (audioCurrentTime / 10) * 100)}
+          colorPalette="green"
+        >
+          <Progress.Track>
+            <Progress.Range />
+          </Progress.Track>
+        </Progress.Root>
+      )}
 
-      <Flex direction="column">
+      <Flex direction="column" alignItems="center">
         {question.choices.map((choice, index) => (
           <Button
             key={index}
             type="button"
             onClick={() => handleChoiceSubmit(index)}
-            disabled={selectedChoice !== null}
-            style={{
-              backgroundColor: selectedChoice === index ? "blue" : "gray",
-              color: "white",
-              margin: "5px",
-              padding: "10px",
-            }}
+            disabled={selectedChoice !== null || audio.paused}
+            height="auto"
+            width="15em"
+            wordWrap="break-word"
+            whiteSpace="normal"
+            backgroundColor={selectedChoice === index ? "blue" : "gray"}
+            color="white"
+            margin="1"
+            padding="2"
           >
             {choice.name}
           </Button>
         ))}
       </Flex>
 
-      <Heading size="3xl">Scoreboard</Heading>
-      <List.Root>
-        {users.map((user) => (
-          <List.Item key={user.name}>
-            {user.name}: {user.score}
-          </List.Item>
-        ))}
-      </List.Root>
+      <Scoreboard title="Scoreboard" users={users} />
 
       <Button
         onClick={() => {
           post(`/api/room/${room}/reset`, {});
         }}
       >
-        Back to waiting room
+        Back to Lobby
       </Button>
     </Flex>
   );

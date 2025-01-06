@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import UserForm from "./UserForm";
+import UserForm from "./components/UserForm";
 import { getUserData } from "./utils";
 import {
   EndedGameState,
   PlayingGameState,
   User,
+  WaitingForNextQuestionState,
   WaitingGameState,
 } from "./model";
 import WaitingRoom from "./WaitingRoom";
 import Game from "./Game";
 import GameResults from "./GameResults";
 import { Flex, Heading } from "@chakra-ui/react";
+import QuestionResults from "./QuestionResults";
 
 function getWsUri(room_id: string, user: User): string {
   const url = new URL(
@@ -44,8 +46,17 @@ function Room() {
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      setType(data.type);
-      setState(data);
+      if (
+        [
+          "WaitingForGame",
+          "Playing",
+          "WaitingForNextQuestion",
+          "Ended",
+        ].includes(data.type)
+      ) {
+        setType(data.type);
+        setState(data);
+      }
     };
 
     setWs(ws);
@@ -64,23 +75,29 @@ function Room() {
   }
 
   const content = () => {
-    if (type == "Waiting") {
-      return <WaitingRoom state={state as WaitingGameState} id={id} />;
-    } else if (type == "Playing") {
-      return (
-        <Game state={state as PlayingGameState} ws={ws} user={user} room={id} />
-      );
-    } else if (type == "Ended") {
-      return <GameResults state={state as EndedGameState} room={id} />;
+    switch (type) {
+      case "WaitingForGame":
+        return <WaitingRoom state={state as WaitingGameState} id={id} />;
+      case "Playing":
+        return (
+          <Game
+            state={state as PlayingGameState}
+            ws={ws}
+            user={user}
+            room={id}
+          />
+        );
+      case "WaitingForNextQuestion":
+        return <QuestionResults state={state as WaitingForNextQuestionState} />;
+      case "Ended":
+        return <GameResults state={state as EndedGameState} room={id} />;
     }
   };
 
   return (
-    <Flex w="100vw" justifyContent="center">
-      <Flex h="100vh" direction="column" justifyContent="center" gap="4">
-        <Heading size="6xl">Room {id}</Heading>
-        {content()}
-      </Flex>
+    <Flex direction="column" justifyContent="center" gap="4" maxW="75%">
+      <Heading size="3xl">Room {id}</Heading>
+      {content()}
     </Flex>
   );
 }

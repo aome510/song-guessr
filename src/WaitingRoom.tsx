@@ -10,7 +10,7 @@ const WaitingRoom: React.FC<{ state: WaitingGameState; id: string }> = ({
   return (
     <Flex gap="4" direction="column">
       <div>
-        <Heading size="3xl">Users</Heading>
+        <Heading size="xl">Users</Heading>
         <List.Root>
           {state.users.map((user, i) => (
             <List.Item key={i}>{user.name}</List.Item>

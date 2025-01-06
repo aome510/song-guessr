@@ -77,7 +77,7 @@ impl Client {
         }
     }
 
-    pub async fn playlist_tracks(&self, playlist_id: String) -> anyhow::Result<Vec<FullTrack>> {
+    pub async fn playlist_tracks(&self, playlist_id: &str) -> anyhow::Result<Vec<FullTrack>> {
         let playlist_id = PlaylistId::from_id(playlist_id)?;
         let stream = self.spotify.playlist_items(playlist_id, None, None);
 
