@@ -59,7 +59,10 @@ impl Room {
             }
 
             if state.question_state.id == state.questions.len() - 1 {
-                *game = GameState::Ended;
+                *game = GameState::Ended {
+                    playlist_id: state.playlist_id.clone(),
+                    num_questions: state.questions.len(),
+                };
             } else {
                 state.question_state.next_question();
             }
@@ -68,9 +71,14 @@ impl Room {
         }
     }
 
-    pub fn new_game(&self, questions: Vec<Question>) {
+    pub fn new_game(&self, playlist_id: String, questions: Vec<Question>) {
+        for mut user in self.users.iter_mut() {
+            user.score = 0;
+        }
+
         let mut game = self.game.write();
         *game = GameState::Playing(PlayingGameState {
+            playlist_id,
             questions,
             question_state: QuestionState::new(),
         });
@@ -120,6 +128,7 @@ impl Room {
 
 #[derive(Debug)]
 pub struct PlayingGameState {
+    pub playlist_id: String,
     pub questions: Vec<Question>,
     pub question_state: QuestionState,
 }
@@ -134,7 +143,10 @@ impl PlayingGameState {
 pub enum GameState {
     Waiting,
     Playing(PlayingGameState),
-    Ended,
+    Ended {
+        playlist_id: String,
+        num_questions: usize,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]

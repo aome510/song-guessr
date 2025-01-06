@@ -161,7 +161,7 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
                     Some(Message::Text(data))
                 }
             },
-            &game::GameState::Ended => {
+            &game::GameState::Ended { .. } => {
                 let msg = WsServerMessage::Ended {
                     users: room.users(),
                 };
@@ -271,12 +271,37 @@ async fn new_game(
     } = request;
 
     let num_questions = num_questions.unwrap_or(15);
-    let tracks = state.client.playlist_tracks(playlist_id).await?;
+    let tracks = state.client.playlist_tracks(&playlist_id).await?;
     let questions = game::gen_questions(tracks, num_questions);
 
-    room.new_game(questions);
+    room.new_game(playlist_id, questions);
 
     Ok(Json(()))
+}
+
+async fn restart_game(
+    Path(id): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<()>, AppError> {
+    if let Some(room) = state.rooms.get(&id) {
+        let (playlist_id, num_questions) = if let game::GameState::Ended {
+            playlist_id,
+            num_questions,
+        } = &*room.game.read()
+        {
+            (playlist_id.clone(), *num_questions)
+        } else {
+            return Err(anyhow::anyhow!("Game has not ended yet").into());
+        };
+
+        let tracks = state.client.playlist_tracks(&playlist_id).await?;
+        let questions = game::gen_questions(tracks, num_questions);
+        room.new_game(playlist_id, questions);
+
+        Ok(Json(()))
+    } else {
+        Err(anyhow::anyhow!("Room {id} not found").into())
+    }
 }
 #[derive(Debug, Deserialize)]
 struct SearchParams {
@@ -301,6 +326,7 @@ pub fn new_app(client: client::Client) -> Router {
         .route("/room/:id", get(get_room_ws))
         .route("/room/:id/reset", post(reset_room))
         .route("/room/:id/game", post(new_game))
+        .route("/room/:id/restart", post(restart_game))
         .route("/search", get(search_playlist))
         .with_state(state)
 }

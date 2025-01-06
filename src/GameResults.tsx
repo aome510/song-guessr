@@ -10,13 +10,22 @@ const GameResults: React.FC<{
   return (
     <Flex direction="column" gap="4">
       <Scoreboard title="Results" users={state.users} />
-      <Button
-        onClick={() => {
-          post(`/api/room/${room}/reset`, {});
-        }}
-      >
-        New Game
-      </Button>
+      <Flex direction="column" gap="2">
+        <Button
+          onClick={() => {
+            post(`/api/room/${room}/restart`, {});
+          }}
+        >
+          Restart Game
+        </Button>
+        <Button
+          onClick={() => {
+            post(`/api/room/${room}/reset`, {});
+          }}
+        >
+          Back to Lobby
+        </Button>
+      </Flex>
     </Flex>
   );
 };
