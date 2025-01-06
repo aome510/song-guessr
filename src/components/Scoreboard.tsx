@@ -5,6 +5,7 @@ const Scoreboard: React.FC<{ title: string; users: Array<UserGameState> }> = ({
   title,
   users,
 }) => {
+  users.sort((a, b) => b.score - a.score);
   return (
     <Flex direction="column" gap="2">
       <Heading size="xl">{title}</Heading>

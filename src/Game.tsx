@@ -50,6 +50,7 @@ const Game: React.FC<{
     ws.send(
       JSON.stringify({
         type: "UserSubmitted",
+        user_name: user.name,
         user_id: user.id,
         choice: selectedChoice,
         submitted_at_ms: Math.round(audio.currentTime * 1000),

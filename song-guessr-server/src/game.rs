@@ -34,6 +34,10 @@ impl Room {
     pub fn on_question_end(&self) {
         let mut game = self.game.write();
         if let GameState::Playing(state) = &mut *game {
+            if state.question_state.status != QuestionStatus::Playing {
+                return;
+            }
+
             for submission in &state.question_state.submissions {
                 if let Some(mut user) = self.users.get_mut(&submission.user_id) {
                     if submission.choice == state.current_question().ans_id {
@@ -50,6 +54,10 @@ impl Room {
     pub fn on_question_next(&self) {
         let mut game = self.game.write();
         if let GameState::Playing(state) = &mut *game {
+            if state.question_state.status != QuestionStatus::Ended {
+                return;
+            }
+
             if state.question_state.id == state.questions.len() - 1 {
                 *game = GameState::Ended;
             } else {
@@ -185,6 +193,7 @@ impl User {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserSubmission {
+    pub user_name: String,
     pub user_id: String,
     pub choice: usize,
     // user submission timestamp in ms w.r.t the start of the question

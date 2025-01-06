@@ -35,7 +35,7 @@ type PlayingGameState = {
 };
 
 type UserSubmission = {
-  user_id: string;
+  user_name: string;
   submitted_at_ms: number;
 };
 
