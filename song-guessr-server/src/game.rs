@@ -9,6 +9,7 @@ use std::time::Instant;
 
 const QUESTION_TIMEOUT_SECS: u64 = 10;
 const NEXT_QUESTION_WAIT_TIME_MS: u128 = 1500;
+const SCORE_LIMIT: u64 = 2000;
 
 #[derive(Debug)]
 pub struct Room {
@@ -38,11 +39,12 @@ impl Room {
                 return;
             }
 
-            for submission in &state.question_state.submissions {
+            for submission in &mut state.question_state.submissions {
                 if let Some(mut user) = self.users.get_mut(&submission.user_id) {
-                    if submission.choice == state.current_question().ans_id {
-                        user.score += 1;
-                    }
+                    let score =
+                        state.questions[state.question_state.id].submission_score(submission);
+                    submission.score = Some(score);
+                    user.score += score;
                 }
             }
 
@@ -208,6 +210,7 @@ pub struct UserSubmission {
     pub user_name: String,
     pub user_id: String,
     pub choice: usize,
+    pub score: Option<u64>,
     // user submission timestamp in ms w.r.t the start of the question
     pub submitted_at_ms: u32,
 }
@@ -216,8 +219,22 @@ pub struct UserSubmission {
 pub struct Question {
     pub choices: Vec<Choice>,
     pub song_url: String,
+    pub score: u64,
     #[serde(skip)]
     pub ans_id: usize,
+}
+
+impl Question {
+    pub fn submission_score(&self, sub: &UserSubmission) -> u64 {
+        if sub.choice == self.ans_id {
+            // the score is reduced linearly based on the time taken to submit
+            // and is reduced closer to (score / 2) if the user submits near the timeout
+            self.score
+                - ((self.score / 2) * (sub.submitted_at_ms as u64) / 1000 / QUESTION_TIMEOUT_SECS)
+        } else {
+            0
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,6 +273,7 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
     let mut rng = thread_rng();
     let mut seen_names = HashSet::new();
 
+    let mut score: u64 = 500;
     for track in tracks {
         if seen_names.contains(&track.name) {
             continue;
@@ -295,7 +313,11 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
             choices: top_choices.clone(),
             song_url: top_choices[ans_id].preview_url.clone(),
             ans_id,
+            score,
         };
+        if score + 100 <= SCORE_LIMIT {
+            score += 100;
+        }
         questions.push(question);
 
         for (index, mut choice) in top_choices.into_iter().enumerate() {

@@ -14,6 +14,7 @@ type Choice = {
 
 type Question = {
   choices: Array<Choice>;
+  score: number;
   song_url: string;
 };
 
@@ -36,6 +37,7 @@ type PlayingGameState = {
 
 type UserSubmission = {
   user_name: string;
+  score: number;
   submitted_at_ms: number;
 };
 
@@ -62,4 +64,5 @@ export type {
   WaitingGameState,
   WaitingForNextQuestionState,
   EndedGameState,
+  UserSubmission,
 };

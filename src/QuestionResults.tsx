@@ -32,7 +32,11 @@ const QuestionResults: React.FC<{ state: WaitingForNextQuestionState }> = ({
           </List.Root>
         </Flex>
       )}
-      <Scoreboard title="Scoreboard" users={state.users} />
+      <Scoreboard
+        title="Scoreboard"
+        users={state.users}
+        submissions={state.correct_submissions}
+      />
     </Flex>
   );
 };

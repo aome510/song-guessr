@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayingGameState, Question, User, UserGameState } from "./model.tsx";
-import { Button, Flex, Heading, Progress } from "@chakra-ui/react";
+import { Button, Flex, Progress, Text } from "@chakra-ui/react";
 import { post } from "./utils.tsx";
 import Scoreboard from "./components/Scoreboard.tsx";
 
@@ -94,16 +94,20 @@ const Game: React.FC<{
 
   return (
     <Flex direction="column" gap="4">
-      <Heading size="xl">Question {questionId + 1}</Heading>
+      <Text textStyle="xl">
+        Question {questionId + 1} ({question.score})
+      </Text>
 
-      <Progress.Root
-        value={Math.min(100, (audioCurrentTime / 10) * 100)}
-        colorPalette="green"
-      >
-        <Progress.Track>
-          <Progress.Range />
-        </Progress.Track>
-      </Progress.Root>
+      {!audio.paused && (
+        <Progress.Root
+          value={Math.min(100, (audioCurrentTime / 10) * 100)}
+          colorPalette="green"
+        >
+          <Progress.Track>
+            <Progress.Range />
+          </Progress.Track>
+        </Progress.Root>
+      )}
 
       <Flex direction="column" alignItems="center">
         {question.choices.map((choice, index) => (
@@ -111,7 +115,7 @@ const Game: React.FC<{
             key={index}
             type="button"
             onClick={() => handleChoiceSubmit(index)}
-            disabled={selectedChoice !== null}
+            disabled={selectedChoice !== null || audio.paused}
             height="auto"
             width="15em"
             wordWrap="break-word"
@@ -133,7 +137,7 @@ const Game: React.FC<{
           post(`/api/room/${room}/reset`, {});
         }}
       >
-        Back to waiting room
+        Back to Lobby
       </Button>
     </Flex>
   );
