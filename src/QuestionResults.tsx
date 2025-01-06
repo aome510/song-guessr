@@ -20,7 +20,7 @@ const QuestionResults: React.FC<{ state: WaitingForNextQuestionState }> = ({
       </div>
       {state.correct_submissions.length > 0 && (
         <Flex direction="column" gap="2">
-          <Heading size="xl">Resulst</Heading>
+          <Heading size="xl">Results</Heading>
           <List.Root>
             {state.correct_submissions.map((sub, i) => {
               return (
