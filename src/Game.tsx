@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { PlayingGameState, Question, User, UserGameState } from "./model.tsx";
+import { PlayingGameState, User } from "./model.tsx";
 import { Button, Flex, Progress, Text } from "@chakra-ui/react";
 import { post } from "./utils.tsx";
 import Scoreboard from "./components/Scoreboard.tsx";
+import { Howl } from "howler";
 
 const Game: React.FC<{
   ws: WebSocket;
@@ -10,38 +11,33 @@ const Game: React.FC<{
   user: User;
   room: string;
 }> = ({ ws, state, user, room }) => {
-  const [users, setUsers] = useState<Array<UserGameState>>([]);
-  // doesn't set to be state.question_id to trigger the update defined in the later useEffect
-  const [questionId, setQuestionId] = useState<number>(-1);
-  const [question, setQuestion] = useState<Question>(state.question);
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
-  const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
-  const audio = useMemo(() => new Audio(), []);
+  const [audioPlayble, setAudioPlayable] = useState<boolean>(false);
+
+  const audio = useMemo(() => {
+    const sound = new Howl({
+      src: [state.question.song_url],
+      format: ["mp3"],
+      onplay: () => {
+        setAudioPlayable(true);
+      },
+    });
+    sound.volume(0.5);
+    sound.seek(state.song_progress_ms / 1000);
+    sound.play();
+
+    return sound;
+  }, [state]);
 
   useEffect(() => {
-    if (state.question_id !== questionId) {
-      setQuestionId(state.question_id);
-      setQuestion(state.question);
-      setSelectedChoice(null);
-      audio.src = state.question.song_url;
-      audio.currentTime = state.song_progress_ms / 1000;
-    }
+    const interval = setInterval(() => {
+      setAudioCurrentTime(audio.seek());
+    }, 100);
 
-    if (state.users !== users) {
-      setUsers(state.users);
-    }
-  }, [state, questionId, users, audio]);
-
-  useEffect(() => {
-    audio.autoplay = true;
-    audio.volume = 0.5;
-    audio.ontimeupdate = () => {
-      setAudioCurrentTime(audio.currentTime);
-    };
     return () => {
       audio.pause();
-      audio.src = "";
+      clearInterval(interval);
     };
   }, [audio]);
 
@@ -53,38 +49,20 @@ const Game: React.FC<{
         user_name: user.name,
         user_id: user.id,
         choice: selectedChoice,
-        submitted_at_ms: Math.round(audio.currentTime * 1000),
+        submitted_at_ms: Math.round(audio.seek() * 1000),
       }),
     );
   };
 
-  useEffect(() => {
-    const checkAutoPlayable = async () => {
-      if (questionId != -1) {
-        try {
-          if (audio.paused) {
-            await audio.play();
-          }
-          setAudioPlayable(true);
-        } catch {
-          setAudioPlayable(false);
-        }
-      }
-    };
-
-    checkAutoPlayable();
-  }, [questionId, audio]);
-
   // this is a hack to get the audio to play on the first render
   // because the audio autoplay must be triggered by a user gesture
   // more details: see https://developer.chrome.com/blog/autoplay/
-  if (!audioPlayable) {
+  if (audioPlayble === false) {
     return (
       <Button
         padding="2"
         onClick={() => {
           audio.play();
-          setAudioPlayable(true);
         }}
       >
         Press to continue
@@ -95,27 +73,25 @@ const Game: React.FC<{
   return (
     <Flex direction="column" gap="4">
       <Text textStyle="xl">
-        Question {questionId + 1} ({question.score})
+        Question {state.question_id + 1} ({state.question.score})
       </Text>
 
-      {!audio.paused && (
-        <Progress.Root
-          value={Math.min(100, (audioCurrentTime / 10) * 100)}
-          colorPalette="green"
-        >
-          <Progress.Track>
-            <Progress.Range />
-          </Progress.Track>
-        </Progress.Root>
-      )}
+      <Progress.Root
+        value={Math.min(100, (audioCurrentTime / 10) * 100)}
+        colorPalette="green"
+      >
+        <Progress.Track>
+          <Progress.Range />
+        </Progress.Track>
+      </Progress.Root>
 
       <Flex direction="column" alignItems="center">
-        {question.choices.map((choice, index) => (
+        {state.question.choices.map((choice, index) => (
           <Button
             key={index}
             type="button"
             onClick={() => handleChoiceSubmit(index)}
-            disabled={selectedChoice !== null || audio.paused}
+            disabled={selectedChoice !== null}
             height="auto"
             width="15em"
             wordWrap="break-word"
@@ -130,7 +106,7 @@ const Game: React.FC<{
         ))}
       </Flex>
 
-      <Scoreboard title="Scoreboard" users={users} />
+      <Scoreboard title="Scoreboard" users={state.users} />
 
       <Button
         onClick={() => {
