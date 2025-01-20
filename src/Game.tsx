@@ -13,12 +13,16 @@ const Game: React.FC<{
 }> = ({ ws, state, user, room }) => {
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
-  const [audioPlayble, setAudioPlayable] = useState<boolean>(false);
+  const [audioPlayble, setAudioPlayable] = useState<boolean>(true);
 
   const audio = useMemo(() => {
     const sound = new Howl({
       src: [state.question.song_url],
       format: ["mp3"],
+      html5: true,
+      onplayerror: () => {
+        setAudioPlayable(false);
+      },
       onplay: () => {
         setAudioPlayable(true);
       },
