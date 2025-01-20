@@ -4,7 +4,7 @@ use rand::{seq::SliceRandom, thread_rng, Rng};
 use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashSet};
+use std::collections::{BinaryHeap, HashMap, HashSet};
 use std::time::Instant;
 
 const QUESTION_TIMEOUT_SECS: u64 = 10;
@@ -74,6 +74,7 @@ impl Room {
     }
 
     pub fn new_game(&self, playlist_id: String, questions: Vec<Question>) {
+        self.users.retain(|_, u| u.online);
         for mut user in self.users.iter_mut() {
             user.score = 0;
         }
@@ -268,12 +269,11 @@ impl Ord for Choice {
 }
 
 pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Question> {
-    let mut questions: Vec<Question> = Vec::new();
-    let mut heap: BinaryHeap<Choice> = BinaryHeap::new();
     let mut rng = thread_rng();
+
+    let mut heap: BinaryHeap<Choice> = BinaryHeap::new();
     let mut seen_names = HashSet::new();
 
-    let mut score: u64 = 500;
     for track in tracks {
         if seen_names.contains(&track.name) {
             continue;
@@ -297,7 +297,11 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
         });
     }
 
-    for _ in 0..num_questions {
+    let mut score: u64 = 500;
+    let mut questions: Vec<Question> = Vec::new();
+    let mut seen_songs = HashMap::new();
+
+    for i in 0..num_questions {
         let mut top_choices: Vec<Choice> = Vec::new();
 
         for _ in 0..4 {
@@ -308,7 +312,17 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
 
         top_choices.shuffle(&mut rng);
 
-        let ans_id = rng.gen_range(0..4);
+        let mut ans_id = rng.gen_range(0..4);
+        // ensure that the same song is not repeated within 10 questions
+        while seen_songs
+            .get(&top_choices[ans_id].preview_url)
+            .map(|j| (i - j) < 10)
+            .unwrap_or(false)
+        {
+            ans_id = rng.gen_range(0..4);
+        }
+        seen_songs.insert(top_choices[ans_id].preview_url.clone(), i);
+
         let question = Question {
             choices: top_choices.clone(),
             song_url: top_choices[ans_id].preview_url.clone(),
