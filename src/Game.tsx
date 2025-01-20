@@ -16,7 +16,7 @@ const Game: React.FC<{
   const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
 
   const audio = useMemo(() => {
-    const sound = new Howl({
+    return new Howl({
       src: [state.question.song_url],
       format: ["mp3"],
       html5: true,
@@ -26,11 +26,9 @@ const Game: React.FC<{
       onplay: () => {
         setAudioPlayable(true);
       },
+      autoplay: true,
+      volume: 0.5,
     });
-    sound.volume(0.5);
-    sound.play();
-
-    return sound;
   }, [state.question.song_url]);
 
   useEffect(() => {
