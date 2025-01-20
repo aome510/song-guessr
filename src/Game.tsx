@@ -28,11 +28,21 @@ const Game: React.FC<{
       },
     });
     sound.volume(0.5);
-    sound.seek(state.song_progress_ms / 1000);
     sound.play();
 
     return sound;
-  }, [state]);
+  }, [state.question.song_url]);
+
+  useEffect(() => {
+    const gap = Math.abs(state.song_progress_ms / 1000 - audio.seek());
+    // gap > 1.0 indicates the player joining late.
+    // We disallow the player from playing this round (by pausing the audio)
+    // because the audio can be out of sync with the server
+    // TODO: improve this by syncing the audio progress with the server
+    if (gap > 1.0) {
+      audio.pause();
+    }
+  }, [audio, state.song_progress_ms]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -80,14 +90,16 @@ const Game: React.FC<{
         Question {state.question_id + 1} ({state.question.score})
       </Text>
 
-      <Progress.Root
-        value={Math.min(100, (audioCurrentTime / 10) * 100)}
-        colorPalette="green"
-      >
-        <Progress.Track>
-          <Progress.Range />
-        </Progress.Track>
-      </Progress.Root>
+      {audio.playing() && (
+        <Progress.Root
+          value={Math.min(100, (audioCurrentTime / 10) * 100)}
+          colorPalette="green"
+        >
+          <Progress.Track>
+            <Progress.Range />
+          </Progress.Track>
+        </Progress.Root>
+      )}
 
       <Flex direction="column" alignItems="center">
         {state.question.choices.map((choice, index) => (
@@ -95,7 +107,7 @@ const Game: React.FC<{
             key={index}
             type="button"
             onClick={() => handleChoiceSubmit(index)}
-            disabled={selectedChoice !== null}
+            disabled={selectedChoice !== null || !audio.playing()}
             height="auto"
             width="15em"
             wordWrap="break-word"
