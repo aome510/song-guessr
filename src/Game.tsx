@@ -13,7 +13,7 @@ const Game: React.FC<{
 }> = ({ ws, state, user, room }) => {
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
-  const [audioPlayble, setAudioPlayable] = useState<boolean>(true);
+  const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
 
   const audio = useMemo(() => {
     const sound = new Howl({
@@ -71,7 +71,7 @@ const Game: React.FC<{
   // this is a hack to get the audio to play on the first render
   // because the audio autoplay must be triggered by a user gesture
   // more details: see https://developer.chrome.com/blog/autoplay/
-  if (audioPlayble === false) {
+  if (audioPlayable === false) {
     return (
       <Button
         padding="2"
