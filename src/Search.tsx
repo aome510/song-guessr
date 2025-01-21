@@ -1,4 +1,4 @@
-import { Playlist } from "./model.tsx";
+import { Playlist, QuestionType } from "./model.tsx";
 import { useState } from "react";
 import { get, post } from "./utils.tsx";
 import {
@@ -16,6 +16,7 @@ import LoadingPopup from "./components/LoadingPopup.tsx";
 type NewGameRequest = {
   playlist_id: string;
   num_questions: number;
+  question_types: Array<QuestionType>;
 };
 
 const numQuestionsChoices = createListCollection({
@@ -52,6 +53,11 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
     const body: NewGameRequest = {
       playlist_id: playlistId,
       num_questions: numQuestions,
+      question_types: [
+        QuestionType.Song,
+        QuestionType.Album,
+        QuestionType.Artist,
+      ],
     };
     try {
       await post(`/api/room/${room}/game`, body);

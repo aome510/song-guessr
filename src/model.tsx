@@ -8,12 +8,15 @@ type Playlist = {
   owner: SpotifyUser;
 };
 
-type Choice = {
-  name: string;
-};
+enum QuestionType {
+  Song = "Song",
+  Artist = "Artist",
+  Album = "Album",
+}
 
 type Question = {
-  choices: Array<Choice>;
+  question_type: QuestionType;
+  choices: Array<string>;
   score: number;
   bonus: number;
   song_url: string;
@@ -43,7 +46,7 @@ type UserSubmission = {
 };
 
 type WaitingForNextQuestionState = {
-  answer: Choice;
+  answer: string;
   correct_submissions: Array<UserSubmission>;
   users: Array<UserGameState>;
 };
@@ -67,3 +70,5 @@ export type {
   EndedGameState,
   UserSubmission,
 };
+
+export { QuestionType };

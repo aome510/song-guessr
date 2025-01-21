@@ -14,10 +14,7 @@ use axum::{
     Json, Router,
 };
 
-use crate::{
-    client,
-    game::{self, Choice},
-};
+use crate::{client, game};
 
 struct AppState {
     client: client::Client,
@@ -78,7 +75,7 @@ enum WsServerMessage {
         users: Vec<game::User>,
     },
     WaitingForNextQuestion {
-        answer: Choice,
+        answer: String,
         correct_submissions: Vec<game::UserSubmission>,
         users: Vec<game::User>,
     },
@@ -248,6 +245,7 @@ async fn reset_room(
 struct NewGameRequest {
     playlist_id: String,
     num_questions: Option<usize>,
+    question_types: Vec<game::QuestionType>,
 }
 
 async fn new_game(
@@ -268,13 +266,14 @@ async fn new_game(
     let NewGameRequest {
         playlist_id,
         num_questions,
+        question_types,
     } = request;
 
     let num_questions = num_questions.unwrap_or(15);
     let tracks = state.client.playlist_tracks(&playlist_id).await?;
-    let questions = game::gen_questions(tracks, num_questions);
+    let questions = game::gen_questions(tracks, num_questions, question_types.clone());
 
-    room.new_game(playlist_id, questions);
+    room.new_game(playlist_id, question_types, questions);
 
     Ok(Json(()))
 }
@@ -284,19 +283,20 @@ async fn restart_game(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<()>, AppError> {
     if let Some(room) = state.rooms.get(&id) {
-        let (playlist_id, num_questions) = if let game::GameState::Ended {
+        let (playlist_id, num_questions, question_types) = if let game::GameState::Ended {
             playlist_id,
             num_questions,
+            question_types,
         } = &*room.game.read()
         {
-            (playlist_id.clone(), *num_questions)
+            (playlist_id.clone(), *num_questions, question_types.clone())
         } else {
             return Err(anyhow::anyhow!("Game has not ended yet").into());
         };
 
         let tracks = state.client.playlist_tracks(&playlist_id).await?;
-        let questions = game::gen_questions(tracks, num_questions);
-        room.new_game(playlist_id, questions);
+        let questions = game::gen_questions(tracks, num_questions, question_types.clone());
+        room.new_game(playlist_id, question_types, questions);
 
         Ok(Json(()))
     } else {

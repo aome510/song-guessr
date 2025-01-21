@@ -14,7 +14,7 @@ const QuestionResults: React.FC<{ state: WaitingForNextQuestionState }> = ({
         <Text textStyle="xl">
           Correct answer is&nbsp;
           <Text textStyle="xl" color="green.500" as="span">
-            {state.answer.name}!
+            {state.answer}!
           </Text>
         </Text>
       </div>
