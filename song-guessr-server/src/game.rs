@@ -1,10 +1,8 @@
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use rand::{seq::SliceRandom, thread_rng, Rng};
-use rspotify::model::FullTrack;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 const QUESTION_TIMEOUT_SECS: u64 = 10;
@@ -39,10 +37,22 @@ impl Room {
                 return;
             }
 
+            let fastest_user = state
+                .question_state
+                .submissions
+                .iter()
+                .filter(|sub| sub.choice == state.questions[state.question_state.id].ans_id)
+                .min_by_key(|sub| sub.submitted_at_ms)
+                .map(|sub| sub.user_id.clone());
+
             for submission in &mut state.question_state.submissions {
                 if let Some(mut user) = self.users.get_mut(&submission.user_id) {
-                    let score =
-                        state.questions[state.question_state.id].submission_score(submission);
+                    let is_fastest = fastest_user
+                        .as_ref()
+                        .map(|id| submission.user_id.eq(id))
+                        .unwrap_or(false);
+                    let score = state.questions[state.question_state.id]
+                        .submission_score(submission, is_fastest);
                     submission.score = Some(score);
                     user.score += score;
                 }
@@ -63,6 +73,7 @@ impl Room {
             if state.question_state.id == state.questions.len() - 1 {
                 *game = GameState::Ended {
                     playlist_id: state.playlist_id.clone(),
+                    question_types: state.question_types.clone(),
                     num_questions: state.questions.len(),
                 };
             } else {
@@ -73,7 +84,13 @@ impl Room {
         }
     }
 
-    pub fn new_game(&self, playlist_id: String, questions: Vec<Question>) {
+    pub fn new_game(
+        &self,
+        playlist_id: String,
+        question_types: Vec<QuestionType>,
+        questions: Vec<Question>,
+    ) {
+        self.users.retain(|_, u| u.online);
         for mut user in self.users.iter_mut() {
             user.score = 0;
         }
@@ -81,6 +98,7 @@ impl Room {
         let mut game = self.game.write();
         *game = GameState::Playing(PlayingGameState {
             playlist_id,
+            question_types,
             questions,
             question_state: QuestionState::new(),
         });
@@ -131,6 +149,7 @@ impl Room {
 #[derive(Debug)]
 pub struct PlayingGameState {
     pub playlist_id: String,
+    pub question_types: Vec<QuestionType>,
     pub questions: Vec<Question>,
     pub question_state: QuestionState,
 }
@@ -148,6 +167,7 @@ pub enum GameState {
     Ended {
         playlist_id: String,
         num_questions: usize,
+        question_types: Vec<QuestionType>,
     },
 }
 
@@ -217,116 +237,176 @@ pub struct UserSubmission {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Question {
-    pub choices: Vec<Choice>,
+    pub question_type: QuestionType,
+    pub choices: Vec<String>,
     pub song_url: String,
     pub score: u64,
+    pub bonus: u64,
     #[serde(skip)]
     pub ans_id: usize,
 }
 
 impl Question {
-    pub fn submission_score(&self, sub: &UserSubmission) -> u64 {
+    pub fn submission_score(&self, sub: &UserSubmission, is_fastest: bool) -> u64 {
         if sub.choice == self.ans_id {
             // the score is reduced linearly based on the time taken to submit
             // and is reduced closer to (score / 2) if the user submits near the timeout
             self.score
                 - ((self.score / 2) * (sub.submitted_at_ms as u64) / 1000 / QUESTION_TIMEOUT_SECS)
+                + if is_fastest { self.bonus } else { 0 }
         } else {
             0
         }
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Choice {
-    pub name: String,
-    pub artists: String,
-    #[serde(skip)]
-    pub preview_url: String,
-    #[serde(skip)]
-    pub weight: i64,
+struct Choice<'a> {
+    value: &'a str,
+    preview_url: &'a str,
+    index: usize,
 }
 
-impl PartialEq for Choice {
-    fn eq(&self, other: &Self) -> bool {
-        self.weight == other.weight
-    }
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+pub enum QuestionType {
+    Song,
+    Album,
+    Artist,
 }
 
-impl Eq for Choice {}
-
-impl PartialOrd for Choice {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some((self.weight).cmp(&(other.weight)))
-    }
-}
-
-impl Ord for Choice {
-    fn cmp(&self, other: &Self) -> Ordering {
-        (self.weight).cmp(&(other.weight))
-    }
-}
-
-pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Question> {
-    let mut questions: Vec<Question> = Vec::new();
-    let mut heap: BinaryHeap<Choice> = BinaryHeap::new();
-    let mut rng = thread_rng();
-    let mut seen_names = HashSet::new();
-
-    let mut score: u64 = 500;
-    for track in tracks {
-        if seen_names.contains(&track.name) {
-            continue;
+impl QuestionType {
+    /// Generate a question choice based on the type
+    fn gen_choice(self, track: &Track) -> &str {
+        match self {
+            Self::Song => &track.name,
+            Self::Album => &track.album,
+            Self::Artist => &track.artists,
         }
-        seen_names.insert(track.name.clone());
+    }
+}
 
+struct Track {
+    name: String,
+    album: String,
+    artists: String,
+    preview_url: String,
+    weight: i32,
+}
+
+pub fn gen_questions(
+    seed_tracks: Vec<rspotify::model::FullTrack>,
+    num_questions: usize,
+    mut question_types: Vec<QuestionType>,
+) -> Vec<Question> {
+    let mut rng = thread_rng();
+
+    let mut tracks = Vec::new();
+    let mut seen_urls = HashSet::new();
+
+    // process seed tracks
+    for track in seed_tracks {
         let preview_url = if let Some(url) = track.preview_url {
             url
         } else {
             continue;
         };
-        heap.push(Choice {
+
+        if seen_urls.contains(&preview_url) {
+            continue;
+        }
+        seen_urls.insert(preview_url.clone());
+
+        tracks.push(Track {
             name: track.name,
             artists: track
                 .artists
                 .into_iter()
                 .map(|a| a.name)
-                .fold(String::new(), |s, a| s + &a + ", "),
+                .fold(String::new(), |acc, a| {
+                    if acc.is_empty() {
+                        a
+                    } else {
+                        acc + ", " + &a
+                    }
+                }),
+            album: track.album.name,
             preview_url,
-            weight: track.popularity as i64,
+            weight: track.popularity as i32,
         });
     }
 
-    for _ in 0..num_questions {
-        let mut top_choices: Vec<Choice> = Vec::new();
+    let mut score: u64 = 500;
+    let mut questions: Vec<Question> = Vec::new();
+    let mut seen_urls = HashMap::new();
 
+    for i in 0..num_questions {
+        let mut choices = Vec::<Choice>::new();
+
+        // randomly pick a type for current question
+        question_types.shuffle(&mut rng);
+        let question_type = question_types[0];
+
+        // pick question choices from the seed tracks based on the track's weight
+        // and the current question type
+        tracks.sort_by_key(|t| -t.weight);
         for _ in 0..4 {
-            if let Some(choice) = heap.pop() {
-                top_choices.push(choice);
+            for (index, track) in tracks.iter().enumerate() {
+                let choice = question_type.gen_choice(track);
+                if choices.iter().any(|c| c.value == choice) {
+                    continue;
+                }
+                choices.push(Choice {
+                    value: choice,
+                    preview_url: &track.preview_url,
+                    index,
+                });
+                break;
             }
         }
 
-        top_choices.shuffle(&mut rng);
+        choices.shuffle(&mut rng);
 
-        let ans_id = rng.gen_range(0..4);
+        // generate the answer from the choices
+        let mut ans_id = rng.gen_range(0..4);
+        // ensure that the same song is not repeated within 10 questions
+        while seen_urls
+            .get(choices[ans_id].preview_url)
+            .map(|j| (i - j) < 10)
+            .unwrap_or(false)
+        {
+            ans_id = rng.gen_range(0..4);
+        }
+        let song_url = choices[ans_id].preview_url.to_string();
+        seen_urls.insert(song_url.clone(), i);
+
+        // construct question for the current round
         let question = Question {
-            choices: top_choices.clone(),
-            song_url: top_choices[ans_id].preview_url.clone(),
+            question_type,
+            choices: choices.iter().map(|c| c.value.to_string()).collect(),
+            song_url,
             ans_id,
             score,
+            bonus: score / 5,
         };
         if score + 100 <= SCORE_LIMIT {
             score += 100;
         }
         questions.push(question);
 
-        for (index, mut choice) in top_choices.into_iter().enumerate() {
-            if index != ans_id {
-                choice.weight -= rng.gen_range(5..10);
-            } else {
-                choice.weight -= 18;
-            }
-            heap.push(choice);
+        // update weight for tracks that are selected as choices
+        let penalties = choices
+            .into_iter()
+            .enumerate()
+            .map(|(index, choice)| {
+                let penalty = if index != ans_id {
+                    rng.gen_range(7..=10)
+                } else {
+                    20
+                };
+                (penalty, choice.index)
+            })
+            .collect::<Vec<_>>();
+        for (penalty, index) in penalties {
+            tracks[index].weight -= penalty;
         }
     }
 

@@ -16,7 +16,7 @@ const Game: React.FC<{
   const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
 
   const audio = useMemo(() => {
-    const sound = new Howl({
+    return new Howl({
       src: [state.question.song_url],
       format: ["mp3"],
       html5: true,
@@ -26,11 +26,9 @@ const Game: React.FC<{
       onplay: () => {
         setAudioPlayable(true);
       },
+      autoplay: true,
+      volume: 0.5,
     });
-    sound.volume(0.5);
-    sound.play();
-
-    return sound;
   }, [state.question.song_url]);
 
   useEffect(() => {
@@ -86,8 +84,18 @@ const Game: React.FC<{
 
   return (
     <Flex direction="column" gap="4">
-      <Text textStyle="xl">
-        Question {state.question_id + 1} ({state.question.score})
+      <Text textStyle="xl" fontWeight="semibold">
+        Question {state.question_id + 1}
+      </Text>
+      <Text textStyle="md">
+        Score:&nbsp;
+        <Text textStyle="lg" color="green.500" as="span">
+          {state.question.score}
+        </Text>
+        , fastest bonus:&nbsp;
+        <Text textStyle="lg" color="green.500" as="span">
+          {state.question.bonus}
+        </Text>
       </Text>
 
       {audio.playing() && (
@@ -102,6 +110,9 @@ const Game: React.FC<{
       )}
 
       <Flex direction="column" alignItems="center">
+        <Text textStyle="lg" fontWeight="bold">
+          Guess the {state.question.question_type}
+        </Text>
         {state.question.choices.map((choice, index) => (
           <Button
             key={index}
@@ -117,7 +128,7 @@ const Game: React.FC<{
             margin="1"
             padding="2"
           >
-            {choice.name}
+            {choice}
           </Button>
         ))}
       </Flex>
