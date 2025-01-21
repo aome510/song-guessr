@@ -15,6 +15,7 @@ type Choice = {
 type Question = {
   choices: Array<Choice>;
   score: number;
+  bonus: number;
   song_url: string;
 };
 

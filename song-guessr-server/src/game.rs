@@ -39,10 +39,22 @@ impl Room {
                 return;
             }
 
+            let fastest_user = state
+                .question_state
+                .submissions
+                .iter()
+                .filter(|sub| sub.choice == state.questions[state.question_state.id].ans_id)
+                .min_by_key(|sub| sub.submitted_at_ms)
+                .map(|sub| sub.user_id.clone());
+
             for submission in &mut state.question_state.submissions {
                 if let Some(mut user) = self.users.get_mut(&submission.user_id) {
-                    let score =
-                        state.questions[state.question_state.id].submission_score(submission);
+                    let is_fastest = fastest_user
+                        .as_ref()
+                        .map(|id| submission.user_id.eq(id))
+                        .unwrap_or(false);
+                    let score = state.questions[state.question_state.id]
+                        .submission_score(submission, is_fastest);
                     submission.score = Some(score);
                     user.score += score;
                 }
@@ -221,17 +233,19 @@ pub struct Question {
     pub choices: Vec<Choice>,
     pub song_url: String,
     pub score: u64,
+    pub bonus: u64,
     #[serde(skip)]
     pub ans_id: usize,
 }
 
 impl Question {
-    pub fn submission_score(&self, sub: &UserSubmission) -> u64 {
+    pub fn submission_score(&self, sub: &UserSubmission, is_fastest: bool) -> u64 {
         if sub.choice == self.ans_id {
             // the score is reduced linearly based on the time taken to submit
             // and is reduced closer to (score / 2) if the user submits near the timeout
             self.score
                 - ((self.score / 2) * (sub.submitted_at_ms as u64) / 1000 / QUESTION_TIMEOUT_SECS)
+                + if is_fastest { self.bonus } else { 0 }
         } else {
             0
         }
@@ -328,6 +342,7 @@ pub fn gen_questions(tracks: Vec<FullTrack>, num_questions: usize) -> Vec<Questi
             song_url: top_choices[ans_id].preview_url.clone(),
             ans_id,
             score,
+            bonus: score / 5,
         };
         if score + 100 <= SCORE_LIMIT {
             score += 100;

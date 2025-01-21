@@ -84,8 +84,16 @@ const Game: React.FC<{
 
   return (
     <Flex direction="column" gap="4">
-      <Text textStyle="xl">
-        Question {state.question_id + 1} ({state.question.score})
+      <Text textStyle="xl">Question {state.question_id + 1}</Text>
+      <Text textStyle="md">
+        Score:&nbsp;
+        <Text textStyle="md" color="green.500" as="span">
+          {state.question.score}
+        </Text>
+        , fastest bonus:&nbsp;
+        <Text textStyle="md" color="green.500" as="span">
+          {state.question.bonus}
+        </Text>
       </Text>
 
       {audio.playing() && (
