@@ -25,10 +25,21 @@ const numQuestionsChoices = createListCollection({
   }),
 });
 
+const questionTypeChoices = createListCollection({
+  items: [
+    { value: QuestionType.Song, label: "Song" },
+    { value: QuestionType.Album, label: "Album" },
+    { value: QuestionType.Artist, label: "Artist" },
+  ],
+});
+
 const Search: React.FC<{ room: string }> = ({ room }) => {
   const [query, setQuery] = useState<string>("");
   const [results, setResults] = useState<Array<Playlist>>([]);
   const [numQuestions, setNumQuestions] = useState<number>(15);
+  const [questionTypes, setQuestionTypes] = useState<Array<QuestionType>>([
+    QuestionType.Song,
+  ]);
   const [playlistId, setPlaylistId] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -53,11 +64,7 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
     const body: NewGameRequest = {
       playlist_id: playlistId,
       num_questions: numQuestions,
-      question_types: [
-        QuestionType.Song,
-        QuestionType.Album,
-        QuestionType.Artist,
-      ],
+      question_types: questionTypes,
     };
     try {
       await post(`/api/room/${room}/game`, body);
@@ -133,8 +140,36 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
             </Select.Root>
           )}
 
-          {results.length > 0 && playlistId !== "" && (
-            <Button type="submit">New Game</Button>
+          {results.length > 0 && (
+            <Select.Root
+              multiple
+              collection={questionTypeChoices}
+              value={questionTypes}
+              onValueChange={(e) => {
+                setQuestionTypes(e.items.map((item) => item.value));
+              }}
+            >
+              <Select.Label>Question types</Select.Label>
+              <Select.Trigger>
+                <Select.ValueText />
+              </Select.Trigger>
+              <Select.Content>
+                {questionTypeChoices.items.map((item) => (
+                  <Select.Item color="black" item={item} key={item.value}>
+                    {item.label}
+                  </Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          )}
+
+          {results.length > 0 && (
+            <Button
+              type="submit"
+              disabled={playlistId === "" || questionTypes.length == 0}
+            >
+              New Game
+            </Button>
           )}
         </Flex>
       </form>
