@@ -1,4 +1,5 @@
 use dashmap::DashMap;
+use rand::{thread_rng, Rng};
 use rspotify::model::SimplifiedPlaylist;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -51,7 +52,7 @@ struct NewRoomResponse {
 
 async fn new_room(State(state): State<Arc<AppState>>) -> Result<Json<NewRoomResponse>, AppError> {
     let room = game::Room::new();
-    let room_id = game::gen_id(8);
+    let room_id = gen_id(8);
     state.rooms.insert(room_id.clone(), Arc::new(room));
     Ok(Json(NewRoomResponse { room_id }))
 }
@@ -243,7 +244,7 @@ async fn reset_room(
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct NewGameRequest {
-    client_key: String,
+    client_id: String,
     playlist_id: String,
     num_questions: Option<usize>,
     question_types: Vec<game::QuestionType>,
@@ -268,10 +269,10 @@ async fn new_game(
         playlist_id,
         num_questions,
         question_types,
-        client_key,
+        client_id,
     } = request;
 
-    let client = if let Some(client) = state.clients.get(&client_key) {
+    let client = if let Some(client) = state.clients.get(&client_id) {
         client
     } else {
         return Err(anyhow::anyhow!("Client not found").into());
@@ -288,7 +289,7 @@ async fn new_game(
 
 #[derive(Debug, Deserialize)]
 struct RestartGameParams {
-    client_key: String,
+    client_id: String,
 }
 
 async fn restart_game(
@@ -297,7 +298,7 @@ async fn restart_game(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<()>, AppError> {
     if let Some(room) = state.rooms.get(&id) {
-        let client = if let Some(client) = state.clients.get(&params.client_key) {
+        let client = if let Some(client) = state.clients.get(&params.client_id) {
             client
         } else {
             return Err(anyhow::anyhow!("Client not found").into());
@@ -325,7 +326,7 @@ async fn restart_game(
 }
 #[derive(Debug, Deserialize)]
 struct SearchParams {
-    client_key: String,
+    client_id: String,
     query: String,
 }
 
@@ -333,12 +334,49 @@ async fn search_playlist(
     Query(params): Query<SearchParams>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<SimplifiedPlaylist>>, AppError> {
-    let client = if let Some(client) = state.clients.get(&params.client_key) {
+    let client = if let Some(client) = state.clients.get(&params.client_id) {
         client
     } else {
         return Err(anyhow::anyhow!("Client not found").into());
     };
     Ok(client.search_playlist(params.query).await.map(Json)?)
+}
+
+#[derive(Debug, Serialize)]
+struct SpotifyAuthResponse {
+    client_id: String,
+    auth_url: String,
+}
+
+async fn spotify_auth(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<SpotifyAuthResponse>, AppError> {
+    let client_id = gen_id(16);
+    let mut client = client::Client::new(&client_id);
+    let auth_url = client.auth_url()?;
+    state.clients.insert(client_id.clone(), client);
+    Ok(Json(SpotifyAuthResponse {
+        client_id,
+        auth_url,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+struct AuthCallbackParams {
+    code: String,
+}
+
+async fn client_auth_callback(
+    Query(params): Query<AuthCallbackParams>,
+    Path(client_id): Path<String>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<()>, AppError> {
+    if let Some(client) = state.clients.get(&client_id) {
+        client.auth(&params.code).await?;
+        Ok(Json(()))
+    } else {
+        Err(anyhow::anyhow!("Client not found").into())
+    }
 }
 
 pub fn new_app() -> Router {
@@ -354,5 +392,15 @@ pub fn new_app() -> Router {
         .route("/room/:id/game", post(new_game))
         .route("/room/:id/restart", post(restart_game))
         .route("/search", get(search_playlist))
+        .route("/auth", post(spotify_auth))
+        .route("/clients/:client_id/auth", get(client_auth_callback))
         .with_state(state)
+}
+
+fn gen_id(len: usize) -> String {
+    thread_rng()
+        .sample_iter(&rand::distributions::Alphanumeric)
+        .take(len)
+        .map(char::from)
+        .collect()
 }

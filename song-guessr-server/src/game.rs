@@ -412,11 +412,3 @@ pub fn gen_questions(
 
     questions
 }
-
-pub fn gen_id(len: usize) -> String {
-    thread_rng()
-        .sample_iter(&rand::distributions::Alphanumeric)
-        .take(len)
-        .map(char::from)
-        .collect()
-}

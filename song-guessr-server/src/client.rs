@@ -1,7 +1,7 @@
 use futures::TryStreamExt;
 use rspotify::{
     model::{FullTrack, PlayableItem, PlaylistId, SearchResult, SearchType, SimplifiedPlaylist},
-    prelude::BaseClient,
+    prelude::{BaseClient, OAuthClient},
     AuthCodePkceSpotify, Credentials, OAuth,
 };
 use std::collections::HashSet;
@@ -38,26 +38,29 @@ const OAUTH_SCOPES: &[&str] = &[
 ];
 
 pub struct Client {
-    user_id: String,
     spotify: AuthCodePkceSpotify,
 }
 
 impl Client {
-    pub fn new(user_id: String) -> Self {
+    pub fn new(client_id: &str) -> Self {
         let oauth = OAuth {
-            redirect_uri: format!("http://localhost:8000/users/{}/auth", user_id),
+            redirect_uri: format!("http://localhost:8000/clients/{}/auth", client_id),
             scopes: HashSet::from_iter(OAUTH_SCOPES.iter().map(|s| s.to_string())),
             ..Default::default()
         };
         let creds = Credentials::new_pkce(SPOTIFY_CLIENT_ID);
         Self {
-            user_id,
             spotify: AuthCodePkceSpotify::new(creds, oauth),
         }
     }
 
     pub fn auth_url(&mut self) -> anyhow::Result<String> {
         Ok(self.spotify.get_authorize_url(None)?)
+    }
+
+    pub async fn auth(&self, code: &str) -> anyhow::Result<()> {
+        self.spotify.request_token(code).await?;
+        Ok(())
     }
 
     pub async fn search_playlist(&self, query: String) -> anyhow::Result<Vec<SimplifiedPlaylist>> {
