@@ -17,7 +17,7 @@ use axum::{
 use crate::{client, game};
 
 struct AppState {
-    client: client::Client,
+    clients: DashMap<String, client::Client>,
     rooms: DashMap<String, Arc<game::Room>>,
 }
 
@@ -243,6 +243,7 @@ async fn reset_room(
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct NewGameRequest {
+    client_key: String,
     playlist_id: String,
     num_questions: Option<usize>,
     question_types: Vec<game::QuestionType>,
@@ -267,10 +268,17 @@ async fn new_game(
         playlist_id,
         num_questions,
         question_types,
+        client_key,
     } = request;
 
+    let client = if let Some(client) = state.clients.get(&client_key) {
+        client
+    } else {
+        return Err(anyhow::anyhow!("Client not found").into());
+    };
+
     let num_questions = num_questions.unwrap_or(15);
-    let tracks = state.client.playlist_tracks(&playlist_id).await?;
+    let tracks = client.playlist_tracks(&playlist_id).await?;
     let questions = game::gen_questions(tracks, num_questions, question_types.clone());
 
     room.new_game(playlist_id, question_types, questions);
@@ -278,11 +286,23 @@ async fn new_game(
     Ok(Json(()))
 }
 
+#[derive(Debug, Deserialize)]
+struct RestartGameParams {
+    client_key: String,
+}
+
 async fn restart_game(
+    Query(params): Query<RestartGameParams>,
     Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<()>, AppError> {
     if let Some(room) = state.rooms.get(&id) {
+        let client = if let Some(client) = state.clients.get(&params.client_key) {
+            client
+        } else {
+            return Err(anyhow::anyhow!("Client not found").into());
+        };
+
         let (playlist_id, num_questions, question_types) = if let game::GameState::Ended {
             playlist_id,
             num_questions,
@@ -294,7 +314,7 @@ async fn restart_game(
             return Err(anyhow::anyhow!("Game has not ended yet").into());
         };
 
-        let tracks = state.client.playlist_tracks(&playlist_id).await?;
+        let tracks = client.playlist_tracks(&playlist_id).await?;
         let questions = game::gen_questions(tracks, num_questions, question_types.clone());
         room.new_game(playlist_id, question_types, questions);
 
@@ -305,6 +325,7 @@ async fn restart_game(
 }
 #[derive(Debug, Deserialize)]
 struct SearchParams {
+    client_key: String,
     query: String,
 }
 
@@ -312,12 +333,17 @@ async fn search_playlist(
     Query(params): Query<SearchParams>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<SimplifiedPlaylist>>, AppError> {
-    Ok(state.client.search_playlist(params.query).await.map(Json)?)
+    let client = if let Some(client) = state.clients.get(&params.client_key) {
+        client
+    } else {
+        return Err(anyhow::anyhow!("Client not found").into());
+    };
+    Ok(client.search_playlist(params.query).await.map(Json)?)
 }
 
-pub fn new_app(client: client::Client) -> Router {
+pub fn new_app() -> Router {
     let state = Arc::new(AppState {
-        client,
+        clients: DashMap::new(),
         rooms: DashMap::new(),
     });
 

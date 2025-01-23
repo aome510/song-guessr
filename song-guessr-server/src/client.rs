@@ -1,12 +1,11 @@
 use futures::TryStreamExt;
 use rspotify::{
     model::{FullTrack, PlayableItem, PlaylistId, SearchResult, SearchType, SimplifiedPlaylist},
-    prelude::{BaseClient, OAuthClient},
-    AuthCodePkceSpotify, Config, Credentials, OAuth,
+    prelude::BaseClient,
+    AuthCodePkceSpotify, Credentials, OAuth,
 };
 use std::collections::HashSet;
 
-const REDIRECT_URI: &str = "http://127.0.0.1:8989/login";
 const SPOTIFY_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
 // based on https://github.com/librespot-org/librespot/blob/f96f36c064795011f9fee912291eecb1aa46fff6/src/main.rs#L173
 const OAUTH_SCOPES: &[&str] = &[
@@ -39,31 +38,26 @@ const OAUTH_SCOPES: &[&str] = &[
 ];
 
 pub struct Client {
+    user_id: String,
     spotify: AuthCodePkceSpotify,
 }
 
 impl Client {
-    pub fn new() -> Self {
+    pub fn new(user_id: String) -> Self {
         let oauth = OAuth {
-            redirect_uri: REDIRECT_URI.to_string(),
+            redirect_uri: format!("http://localhost:8000/users/{}/auth", user_id),
             scopes: HashSet::from_iter(OAUTH_SCOPES.iter().map(|s| s.to_string())),
             ..Default::default()
         };
         let creds = Credentials::new_pkce(SPOTIFY_CLIENT_ID);
-        let config = Config {
-            token_cached: true,
-            cache_path: std::path::PathBuf::from("/tmp/spotify_token_cache.json"),
-            ..Default::default()
-        };
         Self {
-            spotify: AuthCodePkceSpotify::with_config(creds, oauth, config),
+            user_id,
+            spotify: AuthCodePkceSpotify::new(creds, oauth),
         }
     }
 
-    pub async fn get_token(&mut self) -> anyhow::Result<()> {
-        let url = self.spotify.get_authorize_url(None)?;
-        self.spotify.prompt_for_token(&url).await?;
-        Ok(())
+    pub fn auth_url(&mut self) -> anyhow::Result<String> {
+        Ok(self.spotify.get_authorize_url(None)?)
     }
 
     pub async fn search_playlist(&self, query: String) -> anyhow::Result<Vec<SimplifiedPlaylist>> {
