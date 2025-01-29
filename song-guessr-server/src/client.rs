@@ -42,9 +42,9 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(client_id: &str) -> Self {
+    pub fn new(redirect_uri: String) -> Self {
         let oauth = OAuth {
-            redirect_uri: format!("http://localhost:8000/clients/{}/auth", client_id),
+            redirect_uri,
             scopes: HashSet::from_iter(OAUTH_SCOPES.iter().map(|s| s.to_string())),
             ..Default::default()
         };

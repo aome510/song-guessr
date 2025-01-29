@@ -348,11 +348,17 @@ struct SpotifyAuthResponse {
     auth_url: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct SpotifyAuthRequest {
+    redirect_uri: String,
+}
+
 async fn spotify_auth(
     State(state): State<Arc<AppState>>,
+    Json(request): Json<SpotifyAuthRequest>,
 ) -> Result<Json<SpotifyAuthResponse>, AppError> {
     let client_id = gen_id(16);
-    let mut client = client::Client::new(&client_id);
+    let mut client = client::Client::new(request.redirect_uri);
     let auth_url = client.auth_url()?;
     state.clients.insert(client_id.clone(), client);
     Ok(Json(SpotifyAuthResponse {

@@ -1,6 +1,6 @@
 import { Playlist, QuestionType } from "./model.tsx";
 import { useState } from "react";
-import { get, post } from "./utils.tsx";
+import { get, getClientId, post } from "./utils.tsx";
 import {
   createListCollection,
   Heading,
@@ -12,6 +12,7 @@ import {
 } from "@chakra-ui/react";
 import { Radio, RadioGroup } from "./components/ui/radio.tsx";
 import LoadingPopup from "./components/LoadingPopup.tsx";
+import { redirect } from "react-router-dom";
 
 type NewGameRequest = {
   playlist_id: string;
@@ -42,6 +43,26 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
   ]);
   const [playlistId, setPlaylistId] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
+  const clientId = getClientId();
+
+  if (clientId === null) {
+    return (
+      <Button
+        type="submit"
+        onClick={async () => {
+          const response = await post("/api/auth", {
+            redirect_uri: window.location.origin + "/auth",
+          });
+          const data = await response.json();
+          console.log(data);
+          window.open(data.auth_url, "_self");
+          // localStorage.setItem("clientId", data.client_id);
+        }}
+      >
+        Authenticate with Spotify
+      </Button>
+    );
+  }
 
   const searchPlaylists = async () => {
     if (query !== "") {

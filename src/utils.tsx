@@ -38,4 +38,8 @@ function getUserData(): User | null {
   return { id, name };
 }
 
-export { get, post, getUserData };
+function getClientId(): string | null {
+  return localStorage.getItem("clientId");
+}
+
+export { get, post, getUserData, getClientId };
