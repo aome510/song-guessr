@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayingGameState, User } from "./model.tsx";
 import { Button, Flex, Progress, Text } from "@chakra-ui/react";
-import { post } from "./utils.tsx";
+import { put } from "./utils.tsx";
 import Scoreboard from "./components/Scoreboard.tsx";
 import { Howl } from "howler";
 
@@ -10,37 +10,34 @@ const Game: React.FC<{
   state: PlayingGameState;
   user: User;
   room: string;
-}> = ({ ws, state, user, room }) => {
+  isOwner: boolean;
+}> = ({ ws, state, user, room, isOwner }) => {
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
   const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
+  // construct a timer to measure the elapsed time of the current song's progress
+  const [timer] = useState(performance.now() - state.song_progress_ms);
 
   const audio = useMemo(() => {
-    return new Howl({
+    const audio = new Howl({
       src: [state.question.song_url],
       format: ["mp3"],
       html5: true,
       onplayerror: () => {
         setAudioPlayable(false);
       },
-      onplay: () => {
-        setAudioPlayable(true);
-      },
       autoplay: true,
       volume: 0.5,
     });
-  }, [state.question.song_url]);
 
-  useEffect(() => {
-    const gap = Math.abs(state.song_progress_ms / 1000 - audio.seek());
-    // gap > 1.0 indicates the player joining late.
-    // We disallow the player from playing this round (by pausing the audio)
-    // because the audio can be out of sync with the server
-    // TODO: improve this by syncing the audio progress with the server
-    if (gap > 1.0) {
-      audio.pause();
-    }
-  }, [audio, state.song_progress_ms]);
+    audio.on("play", () => {
+      setAudioPlayable(true);
+      const progress = (performance.now() - timer) / 1000;
+      audio.seek(progress);
+    });
+
+    return audio;
+  }, [state.question.song_url, timer]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -135,13 +132,15 @@ const Game: React.FC<{
 
       <Scoreboard title="Scoreboard" users={state.users} />
 
-      <Button
-        onClick={() => {
-          post(`/api/room/${room}/reset`, {});
-        }}
-      >
-        Back to Lobby
-      </Button>
+      {isOwner && (
+        <Button
+          onClick={() => {
+            put(`/api/room/${room}/reset`, { user_id: user.id });
+          }}
+        >
+          Back to Lobby
+        </Button>
+      )}
     </Flex>
   );
 };

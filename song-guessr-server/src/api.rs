@@ -10,7 +10,7 @@ use axum::{
     },
     http::StatusCode,
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::{get, post, put},
     Json, Router,
 };
 
@@ -44,18 +44,6 @@ impl IntoResponse for AppError {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-struct NewRoomResponse {
-    room_id: String,
-}
-
-async fn new_room(State(state): State<Arc<AppState>>) -> Result<Json<NewRoomResponse>, AppError> {
-    let room = game::Room::new();
-    let room_id = game::gen_id(8);
-    state.rooms.insert(room_id.clone(), Arc::new(room));
-    Ok(Json(NewRoomResponse { room_id }))
-}
-
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(tag = "type")]
 enum WsClientMessage {
@@ -84,20 +72,38 @@ enum WsServerMessage {
     },
 }
 
-#[derive(Debug, Deserialize)]
-struct RoomParams {
+#[derive(Debug, Deserialize, Serialize)]
+struct RoomUpdateRequest {
+    user_id: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct NewRoomResponse {
+    room_id: String,
+}
+
+async fn new_room(
+    State(state): State<Arc<AppState>>,
+    Json(RoomUpdateRequest { user_id }): Json<RoomUpdateRequest>,
+) -> Result<Json<NewRoomResponse>, AppError> {
+    let room = game::Room::new(user_id);
+    let room_id = game::gen_id(8);
+    state.rooms.insert(room_id.clone(), Arc::new(room));
+    Ok(Json(NewRoomResponse { room_id }))
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct GetRoomWsParams {
     user_id: String,
     user_name: String,
 }
 
 async fn get_room_ws(
     Path(id): Path<String>,
-    Query(params): Query<RoomParams>,
+    Query(GetRoomWsParams { user_id, user_name }): Query<GetRoomWsParams>,
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
 ) -> Response {
-    let RoomParams { user_id, user_name } = params;
-
     if let Some(room) = state.rooms.get(&id) {
         let room = room.clone();
 
@@ -182,7 +188,7 @@ async fn handle_client_msg(msg: WsClientMessage, room: &game::Room) -> anyhow::R
             if let game::GameState::Playing(state) = &mut (*game) {
                 state.question_state.submissions.push(submission);
                 // end the current question if all users have submitted
-                if state.question_state.submissions.len() == room.users.len() {
+                if state.question_state.submissions.len() == room.users.read().len() {
                     drop(game);
                     room.on_question_end();
                 }
@@ -223,16 +229,39 @@ async fn handle_socket(
     }
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct IsRoomOwnerParams {
+    user_id: String,
+}
+
+async fn is_room_owner(
+    Path(id): Path<String>,
+    Query(IsRoomOwnerParams { user_id }): Query<IsRoomOwnerParams>,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<bool>, AppError> {
+    Ok(Json(
+        state
+            .rooms
+            .get(&id)
+            .is_some_and(|room| room.owner_id == user_id),
+    ))
+}
+
 async fn reset_room(
     Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
+    Json(RoomUpdateRequest { user_id }): Json<RoomUpdateRequest>,
 ) -> Result<Json<()>, AppError> {
     if let Some(room) = state.rooms.get(&id) {
-        room.users.retain(|_, u| u.online);
-        for mut user in room.users.iter_mut() {
-            user.score = 0;
+        if room.owner_id != user_id {
+            return Err(anyhow::anyhow!("Only the room owner can reset the room").into());
         }
         let mut game = room.game.write();
+        let mut users = room.users.write();
+        users.retain(|u| u.online);
+        for user in users.iter_mut() {
+            user.score = 0;
+        }
         *game = game::GameState::Waiting;
         let _ = room.update_broadcast.send(());
         Ok(Json(()))
@@ -243,6 +272,7 @@ async fn reset_room(
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct NewGameRequest {
+    user_id: String,
     playlist_id: String,
     num_questions: Option<usize>,
     question_types: Vec<game::QuestionType>,
@@ -251,23 +281,25 @@ struct NewGameRequest {
 async fn new_game(
     Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
-    Json(request): Json<NewGameRequest>,
+    Json(NewGameRequest {
+        user_id,
+        playlist_id,
+        num_questions,
+        question_types,
+    }): Json<NewGameRequest>,
 ) -> Result<Json<()>, AppError> {
     let room = if let Some(room) = state.rooms.get(&id) {
         if !matches!(&*room.game.read(), game::GameState::Waiting) {
             return Err(anyhow::anyhow!("Game already in progress").into());
         }
-
         room.clone()
     } else {
         return Err(anyhow::anyhow!("Room {id} not found").into());
     };
 
-    let NewGameRequest {
-        playlist_id,
-        num_questions,
-        question_types,
-    } = request;
+    if room.owner_id != user_id {
+        return Err(anyhow::anyhow!("Only the room owner can start a game").into());
+    }
 
     let num_questions = num_questions.unwrap_or(15);
     let tracks = state.client.playlist_tracks(&playlist_id).await?;
@@ -281,6 +313,7 @@ async fn new_game(
 async fn restart_game(
     Path(id): Path<String>,
     State(state): State<Arc<AppState>>,
+    Json(RoomUpdateRequest { user_id }): Json<RoomUpdateRequest>,
 ) -> Result<Json<()>, AppError> {
     if let Some(room) = state.rooms.get(&id) {
         let (playlist_id, num_questions, question_types) = if let game::GameState::Ended {
@@ -294,6 +327,10 @@ async fn restart_game(
             return Err(anyhow::anyhow!("Game has not ended yet").into());
         };
 
+        if room.owner_id != user_id {
+            return Err(anyhow::anyhow!("Only the room owner can restart the game").into());
+        }
+
         let tracks = state.client.playlist_tracks(&playlist_id).await?;
         let questions = game::gen_questions(tracks, num_questions, question_types.clone());
         room.new_game(playlist_id, question_types, questions);
@@ -304,15 +341,15 @@ async fn restart_game(
     }
 }
 #[derive(Debug, Deserialize)]
-struct SearchParams {
+struct SearchPlaylistParams {
     query: String,
 }
 
 async fn search_playlist(
-    Query(params): Query<SearchParams>,
+    Query(SearchPlaylistParams { query }): Query<SearchPlaylistParams>,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<Vec<SimplifiedPlaylist>>, AppError> {
-    Ok(state.client.search_playlist(params.query).await.map(Json)?)
+    Ok(state.client.search_playlist(query).await.map(Json)?)
 }
 
 pub fn new_app(client: client::Client) -> Router {
@@ -324,9 +361,10 @@ pub fn new_app(client: client::Client) -> Router {
     Router::new()
         .route("/room", post(new_room))
         .route("/room/:id", get(get_room_ws))
-        .route("/room/:id/reset", post(reset_room))
-        .route("/room/:id/game", post(new_game))
-        .route("/room/:id/restart", post(restart_game))
+        .route("/room/:id/is_owner", get(is_room_owner))
+        .route("/room/:id/new_game", put(new_game))
+        .route("/room/:id/reset", put(reset_room))
+        .route("/room/:id/restart", put(restart_game))
         .route("/search", get(search_playlist))
         .with_state(state)
 }

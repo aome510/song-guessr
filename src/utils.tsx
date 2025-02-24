@@ -18,9 +18,25 @@ async function post<T>(url: string, body: T): Promise<Response> {
     },
     body: JSON.stringify(body),
   });
-  if (response.status !== 200) {
+  if (response.status !== 200 && response.status !== 201) {
     const text = await response.text();
     throw new Error(`Failed to send POST request ${url}: ${text}`);
+  } else {
+    return response;
+  }
+}
+
+async function put<T>(url: string, body: T): Promise<Response> {
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (response.status !== 200) {
+    const text = await response.text();
+    throw new Error(`Failed to send PUT request ${url}: ${text}`);
   } else {
     return response;
   }
@@ -38,4 +54,4 @@ function getUserData(): User | null {
   return { id, name };
 }
 
-export { get, post, getUserData };
+export { get, post, put, getUserData };

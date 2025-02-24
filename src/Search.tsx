@@ -1,6 +1,6 @@
-import { Playlist, QuestionType } from "./model.tsx";
+import { Playlist, QuestionType, User } from "./model.tsx";
 import { useState } from "react";
-import { get, post } from "./utils.tsx";
+import { get, put } from "./utils.tsx";
 import {
   createListCollection,
   Heading,
@@ -14,6 +14,7 @@ import { Radio, RadioGroup } from "./components/ui/radio.tsx";
 import LoadingPopup from "./components/LoadingPopup.tsx";
 
 type NewGameRequest = {
+  user_id: string;
   playlist_id: string;
   num_questions: number;
   question_types: Array<QuestionType>;
@@ -33,7 +34,7 @@ const questionTypeChoices = createListCollection({
   ],
 });
 
-const Search: React.FC<{ room: string }> = ({ room }) => {
+const Search: React.FC<{ user: User; room: string }> = ({ room, user }) => {
   const [query, setQuery] = useState<string>("");
   const [results, setResults] = useState<Array<Playlist>>([]);
   const [numQuestions, setNumQuestions] = useState<number>(15);
@@ -62,12 +63,13 @@ const Search: React.FC<{ room: string }> = ({ room }) => {
 
   const newGame = async () => {
     const body: NewGameRequest = {
+      user_id: user.id,
       playlist_id: playlistId,
       num_questions: numQuestions,
       question_types: questionTypes,
     };
     try {
-      await post(`/api/room/${room}/game`, body);
+      await put(`/api/room/${room}/new_game`, body);
     } catch (err) {
       console.error(err);
     }

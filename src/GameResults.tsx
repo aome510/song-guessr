@@ -1,31 +1,35 @@
 import { Button, Flex } from "@chakra-ui/react";
-import { EndedGameState } from "./model";
-import { post } from "./utils";
+import { EndedGameState, User } from "./model";
+import { put } from "./utils";
 import Scoreboard from "./components/Scoreboard";
 
 const GameResults: React.FC<{
   room: string;
   state: EndedGameState;
-}> = ({ room, state }) => {
+  user: User;
+  isOwner: boolean;
+}> = ({ room, state, user, isOwner }) => {
   return (
     <Flex direction="column" gap="4">
       <Scoreboard title="Results" users={state.users} />
-      <Flex direction="column" gap="2">
-        <Button
-          onClick={() => {
-            post(`/api/room/${room}/restart`, {});
-          }}
-        >
-          Restart Game
-        </Button>
-        <Button
-          onClick={() => {
-            post(`/api/room/${room}/reset`, {});
-          }}
-        >
-          Back to Lobby
-        </Button>
-      </Flex>
+      {isOwner && (
+        <Flex direction="column" gap="2">
+          <Button
+            onClick={() => {
+              put(`/api/room/${room}/restart`, { user_id: user.id });
+            }}
+          >
+            Restart Game
+          </Button>
+          <Button
+            onClick={() => {
+              put(`/api/room/${room}/reset`, { user_id: user.id });
+            }}
+          >
+            Back to Lobby
+          </Button>
+        </Flex>
+      )}
     </Flex>
   );
 };

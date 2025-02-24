@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import UserForm from "./components/UserForm";
-import { getUserData } from "./utils";
+import { get, getUserData } from "./utils";
 import {
   EndedGameState,
   PlayingGameState,
@@ -12,7 +12,7 @@ import {
 import WaitingRoom from "./WaitingRoom";
 import Game from "./Game";
 import GameResults from "./GameResults";
-import { Flex, Heading } from "@chakra-ui/react";
+import { Button, Flex, Heading } from "@chakra-ui/react";
 import QuestionResults from "./QuestionResults";
 
 function getWsUri(room_id: string, user: User): string {
@@ -32,6 +32,19 @@ function Room() {
   const [state, setState] = useState<
     PlayingGameState | WaitingGameState | null
   >(null);
+  const [isOwner, setIsOwner] = useState(false);
+
+  useEffect(() => {
+    async function checkOwner() {
+      if (user !== null) {
+        const response = await get(
+          `/api/room/${id}/is_owner?user_id=${user.id}`,
+        );
+        setIsOwner(await response.json());
+      }
+    }
+    checkOwner();
+  }, [user, id]);
 
   if (id === undefined) {
     throw new Error("Room ID is undefined");
@@ -77,7 +90,14 @@ function Room() {
   const content = () => {
     switch (type) {
       case "WaitingForGame":
-        return <WaitingRoom state={state as WaitingGameState} id={id} />;
+        return (
+          <WaitingRoom
+            state={state as WaitingGameState}
+            room={id}
+            user={user}
+            isOwner={isOwner}
+          />
+        );
       case "Playing":
         return (
           <Game
@@ -85,19 +105,34 @@ function Room() {
             ws={ws}
             user={user}
             room={id}
+            isOwner={isOwner}
           />
         );
       case "WaitingForNextQuestion":
         return <QuestionResults state={state as WaitingForNextQuestionState} />;
       case "Ended":
-        return <GameResults state={state as EndedGameState} room={id} />;
+        return (
+          <GameResults
+            state={state as EndedGameState}
+            room={id}
+            user={user}
+            isOwner={isOwner}
+          />
+        );
     }
   };
 
   return (
-    <Flex direction="column" justifyContent="center" gap="4" maxW="75%">
+    <Flex direction="column" justifyContent="center" gap="2" maxW="75%">
       <Heading size="3xl">Room {id}</Heading>
       {content()}
+      <Button
+        onClick={() => {
+          window.location.href = "/";
+        }}
+      >
+        Home
+      </Button>
     </Flex>
   );
 }
