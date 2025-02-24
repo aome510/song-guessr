@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PlayingGameState, User } from "./model.tsx";
 import { Button, Flex, Progress, Text } from "@chakra-ui/react";
-import { post } from "./utils.tsx";
+import { put } from "./utils.tsx";
 import Scoreboard from "./components/Scoreboard.tsx";
 import { Howl } from "howler";
 
@@ -10,7 +10,8 @@ const Game: React.FC<{
   state: PlayingGameState;
   user: User;
   room: string;
-}> = ({ ws, state, user, room }) => {
+  isOwner: boolean;
+}> = ({ ws, state, user, room, isOwner }) => {
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
   const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
@@ -132,13 +133,15 @@ const Game: React.FC<{
 
       <Scoreboard title="Scoreboard" users={state.users} />
 
-      <Button
-        onClick={() => {
-          post(`/api/room/${room}/reset`, {});
-        }}
-      >
-        Back to Lobby
-      </Button>
+      {isOwner && (
+        <Button
+          onClick={() => {
+            put(`/api/room/${room}/reset`, { user_id: user.id });
+          }}
+        >
+          Back to Lobby
+        </Button>
+      )}
     </Flex>
   );
 };
