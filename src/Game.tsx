@@ -14,6 +14,7 @@ const Game: React.FC<{
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
   const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
+  const [timer, setTimer] = useState(performance.now());
 
   const audio = useMemo(() => {
     return new Howl({
@@ -32,15 +33,8 @@ const Game: React.FC<{
   }, [state.question.song_url]);
 
   useEffect(() => {
-    const gap = Math.abs(state.song_progress_ms / 1000 - audio.seek());
-    // gap > 1.0 indicates the player joining late.
-    // We disallow the player from playing this round (by pausing the audio)
-    // because the audio can be out of sync with the server
-    // TODO: improve this by syncing the audio progress with the server
-    if (gap > 1.0) {
-      audio.pause();
-    }
-  }, [audio, state.song_progress_ms]);
+    setTimer(performance.now());
+  }, [state.song_progress_ms]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -75,6 +69,9 @@ const Game: React.FC<{
         padding="2"
         onClick={() => {
           audio.play();
+          const progress =
+            (state.song_progress_ms + performance.now() - timer) / 1000;
+          audio.seek(progress);
         }}
       >
         Press to continue
