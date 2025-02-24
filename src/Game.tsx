@@ -15,27 +15,29 @@ const Game: React.FC<{
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
   const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
-  const [timer, setTimer] = useState(performance.now());
+  // construct a timer to measure the elapsed time of the current song's progress
+  const [timer] = useState(performance.now() - state.song_progress_ms);
 
   const audio = useMemo(() => {
-    return new Howl({
+    const audio = new Howl({
       src: [state.question.song_url],
       format: ["mp3"],
       html5: true,
       onplayerror: () => {
         setAudioPlayable(false);
       },
-      onplay: () => {
-        setAudioPlayable(true);
-      },
       autoplay: true,
       volume: 0.5,
     });
-  }, [state.question.song_url]);
 
-  useEffect(() => {
-    setTimer(performance.now());
-  }, [state.song_progress_ms]);
+    audio.on("play", () => {
+      setAudioPlayable(true);
+      const progress = (performance.now() - timer) / 1000;
+      audio.seek(progress);
+    });
+
+    return audio;
+  }, [state.question.song_url, timer]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -70,9 +72,6 @@ const Game: React.FC<{
         padding="2"
         onClick={() => {
           audio.play();
-          const progress =
-            (state.song_progress_ms + performance.now() - timer) / 1000;
-          audio.seek(progress);
         }}
       >
         Press to continue
