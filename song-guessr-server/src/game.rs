@@ -10,15 +10,17 @@ const SCORE_LIMIT: u64 = 2000;
 
 #[derive(Debug)]
 pub struct Room {
+    pub owner_id: String,
     pub update_broadcast: tokio::sync::broadcast::Sender<()>,
     pub game: RwLock<GameState>,
     pub users: RwLock<Vec<User>>,
 }
 
 impl Room {
-    pub fn new() -> Self {
+    pub fn new(owner_id: String) -> Self {
         let (update_broadcast, _) = tokio::sync::broadcast::channel(10);
         Self {
+            owner_id,
             update_broadcast,
             game: RwLock::new(GameState::Waiting),
             users: RwLock::new(Vec::new()),
