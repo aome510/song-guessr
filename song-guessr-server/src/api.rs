@@ -182,7 +182,7 @@ async fn handle_client_msg(msg: WsClientMessage, room: &game::Room) -> anyhow::R
             if let game::GameState::Playing(state) = &mut (*game) {
                 state.question_state.submissions.push(submission);
                 // end the current question if all users have submitted
-                if state.question_state.submissions.len() == room.users.len() {
+                if state.question_state.submissions.len() == room.users.read().len() {
                     drop(game);
                     room.on_question_end();
                 }
@@ -228,11 +228,12 @@ async fn reset_room(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<()>, AppError> {
     if let Some(room) = state.rooms.get(&id) {
-        room.users.retain(|_, u| u.online);
-        for mut user in room.users.iter_mut() {
+        let mut game = room.game.write();
+        let mut users = room.users.write();
+        users.retain(|u| u.online);
+        for user in users.iter_mut() {
             user.score = 0;
         }
-        let mut game = room.game.write();
         *game = game::GameState::Waiting;
         let _ = room.update_broadcast.send(());
         Ok(Json(()))

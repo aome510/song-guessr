@@ -1,4 +1,3 @@
-use dashmap::DashMap;
 use parking_lot::RwLock;
 use rand::{seq::SliceRandom, thread_rng, Rng};
 use serde::{Deserialize, Serialize};
@@ -13,7 +12,7 @@ const SCORE_LIMIT: u64 = 2000;
 pub struct Room {
     pub update_broadcast: tokio::sync::broadcast::Sender<()>,
     pub game: RwLock<GameState>,
-    pub users: DashMap<String, User>,
+    pub users: RwLock<Vec<User>>,
 }
 
 impl Room {
@@ -22,16 +21,18 @@ impl Room {
         Self {
             update_broadcast,
             game: RwLock::new(GameState::Waiting),
-            users: DashMap::new(),
+            users: RwLock::new(Vec::new()),
         }
     }
 
     pub fn users(&self) -> Vec<User> {
-        self.users.iter().map(|u| u.value().clone()).collect()
+        self.users.read().iter().cloned().collect()
     }
 
     pub fn on_question_end(&self) {
         let mut game = self.game.write();
+        let mut users = self.users.write();
+
         if let GameState::Playing(state) = &mut *game {
             if state.question_state.status != QuestionStatus::Playing {
                 return;
@@ -46,15 +47,18 @@ impl Room {
                 .map(|sub| sub.user_id.clone());
 
             for submission in &mut state.question_state.submissions {
-                if let Some(mut user) = self.users.get_mut(&submission.user_id) {
-                    let is_fastest = fastest_user
-                        .as_ref()
-                        .map(|id| submission.user_id.eq(id))
-                        .unwrap_or(false);
-                    let score = state.questions[state.question_state.id]
-                        .submission_score(submission, is_fastest);
-                    submission.score = Some(score);
-                    user.score += score;
+                for user in users.iter_mut() {
+                    if user.id == submission.user_id {
+                        let is_fastest = fastest_user
+                            .as_ref()
+                            .map(|id| submission.user_id.eq(id))
+                            .unwrap_or(false);
+                        let score = state.questions[state.question_state.id]
+                            .submission_score(submission, is_fastest);
+                        submission.score = Some(score);
+                        user.score += score;
+                        break;
+                    }
                 }
             }
 
@@ -90,12 +94,14 @@ impl Room {
         question_types: Vec<QuestionType>,
         questions: Vec<Question>,
     ) {
-        self.users.retain(|_, u| u.online);
-        for mut user in self.users.iter_mut() {
+        let mut game = self.game.write();
+        let mut users = self.users.write();
+
+        users.retain(|u| u.online);
+        for user in users.iter_mut() {
             user.score = 0;
         }
 
-        let mut game = self.game.write();
         *game = GameState::Playing(PlayingGameState {
             playlist_id,
             question_types,
@@ -125,24 +131,25 @@ impl Room {
     }
 
     pub fn on_user_join(&self, user_id: &str, user_name: &str) {
-        match self.users.entry(user_id.to_string()) {
-            dashmap::mapref::entry::Entry::Occupied(mut entry) => {
-                entry.get_mut().online = true;
-            }
-            dashmap::mapref::entry::Entry::Vacant(entry) => {
-                entry.insert(User::new(user_name.to_string()));
-            }
+        let exists = self.users.read().iter().any(|u| u.id == user_id);
+        if !exists {
+            self.users
+                .write()
+                .push(User::new(user_id.to_string(), user_name.to_string()));
         }
         let _ = self.update_broadcast.send(());
     }
 
     pub fn on_user_leave(&self, user_id: &str, remove: bool) {
-        if remove {
-            self.users.remove(user_id);
-        } else if let Some(mut user) = self.users.get_mut(user_id) {
-            user.online = false;
+        let mut users = self.users.write();
+        if let Some(index) = users.iter().position(|u| u.id == user_id) {
+            if remove {
+                users.remove(index);
+            } else {
+                users[index].online = false;
+            }
+            let _ = self.update_broadcast.send(());
         }
-        let _ = self.update_broadcast.send(());
     }
 }
 
@@ -210,14 +217,17 @@ impl QuestionState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
+    #[serde(skip)]
+    pub id: String,
     pub name: String,
     pub score: u64,
     pub online: bool,
 }
 
 impl User {
-    pub fn new(name: String) -> Self {
+    pub fn new(id: String, name: String) -> Self {
         Self {
+            id,
             name,
             score: 0,
             online: true,
