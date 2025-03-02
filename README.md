@@ -104,7 +104,7 @@ Install the front-end dependencies:
 npm install
 ```
 
-Run the game's website in developement mode:
+Run the game's website in development mode:
 
 ```shell
 npm run dev -- --host
