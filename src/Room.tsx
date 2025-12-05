@@ -12,7 +12,7 @@ import {
 import WaitingRoom from "./WaitingRoom";
 import Game from "./Game";
 import GameResults from "./GameResults";
-import { Button, Flex, Heading } from "@chakra-ui/react";
+import { Flex, Heading } from "@chakra-ui/react";
 import QuestionResults from "./QuestionResults";
 
 function getWsUri(room_id: string, user: User): string {
@@ -123,16 +123,17 @@ function Room() {
   };
 
   return (
-    <Flex direction="column" justifyContent="center" gap="2" maxW="75%">
+    <Flex
+      direction="column"
+      alignItems="center"
+      justifyContent="center"
+      gap="2"
+      mx="auto"
+      w="75vw"
+      maxW="600px"
+    >
       <Heading size="3xl">Room {id}</Heading>
       {content()}
-      <Button
-        onClick={() => {
-          window.location.href = "/";
-        }}
-      >
-        Home
-      </Button>
     </Flex>
   );
 }

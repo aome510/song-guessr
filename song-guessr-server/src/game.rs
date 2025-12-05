@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
 const QUESTION_TIMEOUT_SECS: u64 = 10;
-const NEXT_QUESTION_WAIT_TIME_MS: u128 = 1500;
+const NEXT_QUESTION_WAIT_TIME_MS: u128 = 2000;
 const SCORE_LIMIT: u64 = 2000;
 
 #[derive(Debug)]
@@ -44,7 +44,7 @@ impl Room {
                 .question_state
                 .submissions
                 .iter()
-                .filter(|sub| sub.choice == state.questions[state.question_state.id].ans_id)
+                .filter(|sub| sub.selected_id == state.questions[state.question_state.id].answer_id)
                 .min_by_key(|sub| sub.submitted_at_ms)
                 .map(|sub| sub.user_id.clone());
 
@@ -133,11 +133,11 @@ impl Room {
     }
 
     pub fn on_user_join(&self, user_id: &str, user_name: &str) {
-        let exists = self.users.read().iter().any(|u| u.id == user_id);
-        if !exists {
-            self.users
-                .write()
-                .push(User::new(user_id.to_string(), user_name.to_string()));
+        let mut users = self.users.write();
+        if !users.iter().any(|u| u.id == user_id) {
+            users.push(User::new(user_id.to_string(), user_name.to_string()));
+        } else if let Some(user) = users.iter_mut().find(|u| u.id == user_id) {
+            user.online = true;
         }
         let _ = self.update_broadcast.send(());
     }
@@ -241,7 +241,7 @@ impl User {
 pub struct UserSubmission {
     pub user_name: String,
     pub user_id: String,
-    pub choice: usize,
+    pub selected_id: usize,
     pub score: Option<u64>,
     // user submission timestamp in ms w.r.t the start of the question
     pub submitted_at_ms: u32,
@@ -255,12 +255,12 @@ pub struct Question {
     pub score: u64,
     pub bonus: u64,
     #[serde(skip)]
-    pub ans_id: usize,
+    pub answer_id: usize,
 }
 
 impl Question {
     pub fn submission_score(&self, sub: &UserSubmission, is_fastest: bool) -> u64 {
-        if sub.choice == self.ans_id {
+        if sub.selected_id == self.answer_id {
             // the score is reduced linearly based on the time taken to submit
             // and is reduced closer to (score / 2) if the user submits near the timeout
             self.score
@@ -395,7 +395,7 @@ pub fn gen_questions(
             question_type,
             choices: choices.iter().map(|c| c.value.to_string()).collect(),
             song_url,
-            ans_id,
+            answer_id: ans_id,
             score,
             bonus: score / 5,
         };

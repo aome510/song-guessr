@@ -14,7 +14,7 @@ const Game: React.FC<{
 }> = ({ ws, state, user, room, isOwner }) => {
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
-  const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
+  const [progress, setProgress] = useState<number>(0);
   // construct a timer to measure the elapsed time of the current song's progress
   const [timer] = useState(performance.now() - state.song_progress_ms);
 
@@ -23,17 +23,14 @@ const Game: React.FC<{
       src: [state.question.song_url],
       format: ["mp3"],
       html5: true,
-      onplayerror: () => {
-        setAudioPlayable(false);
-      },
       autoplay: true,
       volume: 0.5,
     });
 
+    audio.play();
+
     audio.on("play", () => {
-      setAudioPlayable(true);
-      const progress = (performance.now() - timer) / 1000;
-      audio.seek(progress);
+      audio.seek((performance.now() - timer) / 1000);
     });
 
     return audio;
@@ -50,6 +47,16 @@ const Game: React.FC<{
     };
   }, [audio]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setProgress((performance.now() - timer) / 1000);
+    }, 100);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [timer]);
+
   const handleChoiceSubmit = (selectedChoice: number) => {
     setSelectedChoice(selectedChoice);
     ws.send(
@@ -57,7 +64,7 @@ const Game: React.FC<{
         type: "UserSubmitted",
         user_name: user.name,
         user_id: user.id,
-        choice: selectedChoice,
+        selected_id: selectedChoice,
         submitted_at_ms: Math.round(audio.seek() * 1000),
       }),
     );
@@ -66,7 +73,7 @@ const Game: React.FC<{
   // this is a hack to get the audio to play on the first render
   // because the audio autoplay must be triggered by a user gesture
   // more details: see https://developer.chrome.com/blog/autoplay/
-  if (audioPlayable === false) {
+  if (!audio.playing() && progress > 1.0) {
     return (
       <Button
         padding="2"
@@ -80,54 +87,98 @@ const Game: React.FC<{
   }
 
   return (
-    <Flex direction="column" gap="4">
-      <Text textStyle="xl" fontWeight="semibold">
-        Question {state.question_id + 1}
-      </Text>
-      <Text textStyle="md">
-        Score:&nbsp;
-        <Text textStyle="lg" color="green.500" as="span">
-          {state.question.score}
+    <Flex direction="column" gap="6" mx="auto" w="full">
+      <Flex direction="column" gap="2" align="center">
+        <Text textStyle="2xl" fontWeight="bold">
+          Question {state.question_id + 1}
         </Text>
-        , fastest bonus:&nbsp;
-        <Text textStyle="lg" color="green.500" as="span">
-          {state.question.bonus}
-        </Text>
-      </Text>
+        <Flex gap="4" wrap="wrap" justify="center">
+          <Flex align="center" gap="1">
+            <Text textStyle="sm">Score:</Text>
+            <Text textStyle="xl" color="green.500" fontWeight="bold">
+              {state.question.score}
+            </Text>
+          </Flex>
+          <Flex align="center" gap="1">
+            <Text textStyle="sm">Fastest Bonus:</Text>
+            <Text textStyle="xl" color="orange.500" fontWeight="bold">
+              {state.question.bonus}
+            </Text>
+          </Flex>
+        </Flex>
+      </Flex>
 
       {audio.playing() && (
         <Progress.Root
           value={Math.min(100, (audioCurrentTime / 10) * 100)}
           colorPalette="green"
+          size="lg"
         >
-          <Progress.Track>
-            <Progress.Range />
+          <Progress.Track bg="gray.200" borderRadius="full">
+            <Progress.Range borderRadius="full" />
           </Progress.Track>
         </Progress.Root>
       )}
 
-      <Flex direction="column" alignItems="center">
-        <Text textStyle="lg" fontWeight="bold">
+      <Flex
+        direction="column"
+        gap="4"
+        p="6"
+        bg="gray.50"
+        borderRadius="xl"
+        shadow="md"
+      >
+        <Text
+          textAlign="center"
+          textStyle="xl"
+          fontWeight="bold"
+          color="gray.700"
+        >
           Guess the {state.question.question_type}
         </Text>
-        {state.question.choices.map((choice, index) => (
-          <Button
-            key={index}
-            type="button"
-            onClick={() => handleChoiceSubmit(index)}
-            disabled={selectedChoice !== null || !audio.playing()}
-            height="auto"
-            width="15em"
-            wordWrap="break-word"
-            whiteSpace="normal"
-            backgroundColor={selectedChoice === index ? "blue" : "gray"}
-            color="white"
-            margin="1"
-            padding="2"
-          >
-            {choice}
-          </Button>
-        ))}
+        <Flex direction="column" gap="3">
+          {state.question.choices.map((choice, index) => (
+            <Button
+              key={index}
+              type="button"
+              onClick={() => handleChoiceSubmit(index)}
+              disabled={selectedChoice !== null || !audio.playing()}
+              height="auto"
+              minH="60px"
+              width="100%"
+              fontSize="lg"
+              fontWeight="medium"
+              whiteSpace="normal"
+              textAlign="center"
+              px="4"
+              py="3"
+              borderRadius="lg"
+              transition="all 0.2s"
+              backgroundColor={selectedChoice === index ? "blue.500" : "white"}
+              color={selectedChoice === index ? "white" : "gray.700"}
+              border="2px solid"
+              borderColor={selectedChoice === index ? "blue.500" : "gray.300"}
+              _hover={{
+                transform:
+                  selectedChoice === null && audio.playing()
+                    ? "translateY(-2px)"
+                    : "none",
+                shadow:
+                  selectedChoice === null && audio.playing() ? "lg" : "none",
+                borderColor:
+                  selectedChoice === null && audio.playing()
+                    ? "blue.400"
+                    : undefined,
+              }}
+              _disabled={{
+                opacity: selectedChoice === null ? 0.5 : 1,
+                cursor: "not-allowed",
+              }}
+            >
+              {choice}
+            </Button>
+          ))}
+        </Flex>
       </Flex>
 
       <Scoreboard title="Scoreboard" users={state.users} />
