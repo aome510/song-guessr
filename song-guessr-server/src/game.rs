@@ -133,11 +133,11 @@ impl Room {
     }
 
     pub fn on_user_join(&self, user_id: &str, user_name: &str) {
-        let exists = self.users.read().iter().any(|u| u.id == user_id);
-        if !exists {
-            self.users
-                .write()
-                .push(User::new(user_id.to_string(), user_name.to_string()));
+        let mut users = self.users.write();
+        if !users.iter().any(|u| u.id == user_id) {
+            users.push(User::new(user_id.to_string(), user_name.to_string()));
+        } else if let Some(user) = users.iter_mut().find(|u| u.id == user_id) {
+            user.online = true;
         }
         let _ = self.update_broadcast.send(());
     }
