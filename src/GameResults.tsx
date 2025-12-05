@@ -10,10 +10,10 @@ const GameResults: React.FC<{
   isOwner: boolean;
 }> = ({ room, state, user, isOwner }) => {
   return (
-    <Flex direction="column" gap="4">
+    <Flex direction="column" gap="4" mx="auto" w="full">
       <Scoreboard title="Results" users={state.users} />
       {isOwner && (
-        <Flex direction="column" gap="2">
+        <Flex direction="column" gap="2" w="full">
           <Button
             onClick={() => {
               put(`/api/room/${room}/restart`, { user_id: user.id });

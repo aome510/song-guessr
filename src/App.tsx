@@ -14,7 +14,7 @@ function App() {
   return (
     <>
       <ChakraProvider value={defaultSystem}>
-        <Center minH="100vh" w="100vw">
+        <Center minH="100vh">
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<HomePage />} />

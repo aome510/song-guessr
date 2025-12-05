@@ -7,20 +7,18 @@ const QuestionResults: React.FC<{ state: WaitingForNextQuestionState }> = ({
 }) => {
   state.submissions.sort((a, b) => a.submitted_at_ms - b.submitted_at_ms);
   return (
-    <Flex direction="column" gap="2">
-      <div>
-        <Text textStyle="lg">
-          Correct answer is&nbsp;
-          <Text textStyle="lg" color="green.500" as="span">
-            {state.choices[state.answer_id]}!
-          </Text>
+    <Flex direction="column" gap="6" w="full" mt="auto">
+      <Text textStyle="xl" fontWeight="semibold">
+        Correct answer is&nbsp;
+        <Text textStyle="xl" fontWeight="bold" color="green.500" as="span">
+          {state.choices[state.answer_id]}!
         </Text>
-      </div>
+      </Text>
 
       {state.submissions.length > 0 && (
         <Flex direction="column" gap="2">
           <Heading size="xl">Submissions</Heading>
-          <Table.Root variant="outline" size="md">
+          <Table.Root variant="outline" size="lg">
             <Table.Header>
               <Table.Row>
                 <Table.ColumnHeader>User</Table.ColumnHeader>

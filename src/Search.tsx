@@ -84,12 +84,12 @@ const Search: React.FC<{ user: User; room: string }> = ({ room, user }) => {
           setLoading(false);
         }}
       >
-        <Flex gap="6" direction="column" maxW="800px" mx="auto" mt="6">
+        <Flex gap="6" direction="column" mx="auto">
           <Field.Root>
             <Field.Label fontSize="lg" fontWeight="semibold">
               Search for a Spotify Playlist
             </Field.Label>
-            <Flex gap="2">
+            <Flex gap="2" w="full">
               <Input
                 type="text"
                 placeholder="Enter playlist name..."
@@ -120,6 +120,7 @@ const Search: React.FC<{ user: User; room: string }> = ({ room, user }) => {
                 onValueChange={(e) => {
                   setPlaylistId(e.value);
                 }}
+                w="full"
               >
                 <Flex
                   direction="column"

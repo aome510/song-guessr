@@ -87,7 +87,7 @@ const Game: React.FC<{
   }
 
   return (
-    <Flex direction="column" gap="6" mx="auto">
+    <Flex direction="column" gap="6" mx="auto" w="full">
       <Flex direction="column" gap="2" align="center">
         <Text textStyle="2xl" fontWeight="bold">
           Question {state.question_id + 1}

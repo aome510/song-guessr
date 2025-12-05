@@ -128,8 +128,9 @@ function Room() {
       alignItems="center"
       justifyContent="center"
       gap="2"
-      maxW="75%"
       mx="auto"
+      w="75vw"
+      maxW="600px"
     >
       <Heading size="3xl">Room {id}</Heading>
       {content()}

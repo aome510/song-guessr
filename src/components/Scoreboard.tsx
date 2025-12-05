@@ -1,4 +1,4 @@
-import { Flex, Heading, Table } from "@chakra-ui/react";
+import { Flex, Heading, Table, Text } from "@chakra-ui/react";
 import { UserGameState, UserSubmission } from "../model";
 
 const Scoreboard: React.FC<{
@@ -8,7 +8,7 @@ const Scoreboard: React.FC<{
 }> = ({ title, users, submissions }) => {
   users.sort((a, b) => b.score - a.score);
   return (
-    <Flex direction="column" gap="4" p="4" borderRadius="lg">
+    <Flex direction="column" gap="2" borderRadius="lg" w="full">
       <Heading size="xl">{title}</Heading>
       <Table.Root size="lg">
         <Table.Header>
@@ -20,25 +20,21 @@ const Scoreboard: React.FC<{
           </Table.Row>
         </Table.Header>
         <Table.Body>
-          {users.map((user, index) => {
+          {users.map((user) => {
             const score = submissions?.find(
               (s) => s.user_name === user.name,
             )?.score;
 
             return (
-              <Table.Row
-                key={user.name}
-                bg={index % 2 === 0 ? "white" : "gray.50"}
-                _hover={{ bg: "blue.50" }}
-              >
+              <Table.Row key={user.name} _hover={{ bg: "blue.50" }}>
                 <Table.Cell fontWeight="medium">{user.name}</Table.Cell>
                 <Table.Cell textAlign="right">
                   <Flex gap="2" justify="flex-end" align="center">
-                    <span>{user.score}</span>
+                    <Text>{user.score}</Text>
                     {score !== undefined && score > 0 && (
-                      <span style={{ color: "green", fontWeight: "bold" }}>
+                      <Text color="green.500" fontWeight="bold">
                         (+{score})
-                      </span>
+                      </Text>
                     )}
                   </Flex>
                 </Table.Cell>

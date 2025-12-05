@@ -1,7 +1,7 @@
 import { User, WaitingGameState } from "./model";
 import React from "react";
 import Search from "./Search";
-import { Heading, List, Flex, Text } from "@chakra-ui/react";
+import { Heading, Flex, Text } from "@chakra-ui/react";
 
 const WaitingRoom: React.FC<{
   state: WaitingGameState;
@@ -10,7 +10,7 @@ const WaitingRoom: React.FC<{
   isOwner: boolean;
 }> = ({ state, room, user, isOwner }) => {
   return (
-    <Flex gap="4" direction="column">
+    <Flex gap="4" direction="column" w="full">
       <div>
         <Heading size="xl">Users</Heading>
         <Flex direction="column" gap="3" mt="4">
