@@ -43,11 +43,13 @@ type UserSubmission = {
   user_name: string;
   score: number;
   submitted_at_ms: number;
+  selected_id: number;
 };
 
 type WaitingForNextQuestionState = {
-  answer: string;
-  correct_submissions: Array<UserSubmission>;
+  choices: Array<string>;
+  answer_id: number;
+  submissions: Array<UserSubmission>;
   users: Array<UserGameState>;
 };
 

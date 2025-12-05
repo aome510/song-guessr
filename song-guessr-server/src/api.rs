@@ -63,8 +63,9 @@ enum WsServerMessage {
         users: Vec<game::User>,
     },
     WaitingForNextQuestion {
-        answer: String,
-        correct_submissions: Vec<game::UserSubmission>,
+        choices: Vec<String>,
+        answer_id: usize,
+        submissions: Vec<game::UserSubmission>,
         users: Vec<game::User>,
     },
     Ended {
@@ -117,7 +118,7 @@ async fn get_room_ws(
 
             room.on_user_leave(
                 &user_id,
-                matches!(&*room.game.read(), &game::GameState::Waiting { .. }),
+                matches!(&*room.game.read(), &game::GameState::Waiting),
             );
         })
     } else {
@@ -150,14 +151,9 @@ async fn on_game_state_update(socket: &mut WebSocket, room: &game::Room) -> anyh
                 game::QuestionStatus::Ended => {
                     let current_question = state.current_question();
                     let msg = WsServerMessage::WaitingForNextQuestion {
-                        answer: current_question.choices[current_question.ans_id].clone(),
-                        correct_submissions: state
-                            .question_state
-                            .submissions
-                            .iter()
-                            .filter(|s| s.choice == current_question.ans_id)
-                            .cloned()
-                            .collect(),
+                        choices: current_question.choices.clone(),
+                        answer_id: current_question.answer_id,
+                        submissions: state.question_state.submissions.to_vec(),
                         users: room.users(),
                     };
                     let data = serde_json::to_string(&msg)?;

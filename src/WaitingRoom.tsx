@@ -13,11 +13,34 @@ const WaitingRoom: React.FC<{
     <Flex gap="4" direction="column">
       <div>
         <Heading size="xl">Users</Heading>
-        <List.Root>
+        <Flex direction="column" gap="3" mt="4">
           {state.users.map((user, i) => (
-            <List.Item key={i}>{user.name}</List.Item>
+            <Flex
+              key={i}
+              align="center"
+              p="3"
+              bg="gray.50"
+              borderRadius="md"
+              borderWidth="1px"
+              borderColor="gray.200"
+            >
+              <Flex
+          w="8"
+          h="8"
+          bg="blue.500"
+          color="white"
+          borderRadius="full"
+          align="center"
+          justify="center"
+          fontWeight="bold"
+          mr="3"
+              >
+          {user.name.charAt(0).toUpperCase()}
+              </Flex>
+              <Text fontWeight="medium">{user.name}</Text>
+            </Flex>
           ))}
-        </List.Root>
+        </Flex>
       </div>
       {isOwner && <Search room={room} user={user} />}
       {!isOwner && (
