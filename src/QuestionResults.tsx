@@ -5,9 +5,7 @@ import Scoreboard from "./components/Scoreboard";
 const QuestionResults: React.FC<{ state: WaitingForNextQuestionState }> = ({
   state,
 }) => {
-  state.submissions.sort(
-    (a, b) => a.submitted_at_ms - b.submitted_at_ms,
-  );
+  state.submissions.sort((a, b) => a.submitted_at_ms - b.submitted_at_ms);
   return (
     <Flex direction="column" gap="2">
       <div>
@@ -18,7 +16,7 @@ const QuestionResults: React.FC<{ state: WaitingForNextQuestionState }> = ({
           </Text>
         </Text>
       </div>
-      
+
       {state.submissions.length > 0 && (
         <Flex direction="column" gap="2">
           <Heading size="xl">Submissions</Heading>
@@ -37,10 +35,18 @@ const QuestionResults: React.FC<{ state: WaitingForNextQuestionState }> = ({
                   <Table.Row key={i}>
                     <Table.Cell>{sub.user_name}</Table.Cell>
                     <Table.Cell>
-                      <Text as="span" color={isCorrect ? "green.500" : "red.500"} fontWeight="semibold">{isCorrect ? "✓" : "✗"} </Text>
+                      <Text
+                        as="span"
+                        color={isCorrect ? "green.500" : "red.500"}
+                        fontWeight="semibold"
+                      >
+                        {isCorrect ? "✓" : "✗"}{" "}
+                      </Text>
                       {state.choices[sub.selected_id]}
                     </Table.Cell>
-                    <Table.Cell>{(sub.submitted_at_ms / 1000).toFixed(2)}s</Table.Cell>
+                    <Table.Cell>
+                      {(sub.submitted_at_ms / 1000).toFixed(2)}s
+                    </Table.Cell>
                   </Table.Row>
                 );
               })}
@@ -48,7 +54,7 @@ const QuestionResults: React.FC<{ state: WaitingForNextQuestionState }> = ({
           </Table.Root>
         </Flex>
       )}
-      
+
       <Scoreboard
         title="Scoreboard"
         users={state.users}

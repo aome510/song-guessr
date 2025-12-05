@@ -123,7 +123,14 @@ function Room() {
   };
 
   return (
-    <Flex direction="column" alignItems="center" justifyContent="center" gap="2" maxW="75%" mx="auto">
+    <Flex
+      direction="column"
+      alignItems="center"
+      justifyContent="center"
+      gap="2"
+      maxW="75%"
+      mx="auto"
+    >
       <Heading size="3xl">Room {id}</Heading>
       {content()}
     </Flex>

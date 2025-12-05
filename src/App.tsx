@@ -7,7 +7,6 @@ import {
   defaultSystem,
   Heading,
 } from "@chakra-ui/react";
-import "./App.css";
 
 const NotFound = () => <Heading size="6xl">404 - Page Not Found</Heading>;
 
@@ -15,7 +14,7 @@ function App() {
   return (
     <>
       <ChakraProvider value={defaultSystem}>
-        <Center h="100vh" w="100vw" direction="column">
+        <Center minH="100vh" w="100vw">
           <BrowserRouter>
             <Routes>
               <Route path="/" element={<HomePage />} />

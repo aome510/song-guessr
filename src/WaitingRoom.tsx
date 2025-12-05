@@ -19,23 +19,20 @@ const WaitingRoom: React.FC<{
               key={i}
               align="center"
               p="3"
-              bg="gray.50"
               borderRadius="md"
               borderWidth="1px"
-              borderColor="gray.200"
             >
               <Flex
-          w="8"
-          h="8"
-          bg="blue.500"
-          color="white"
-          borderRadius="full"
-          align="center"
-          justify="center"
-          fontWeight="bold"
-          mr="3"
+                w="8"
+                h="8"
+                bg="blue.500"
+                borderRadius="full"
+                align="center"
+                justify="center"
+                fontWeight="bold"
+                mr="3"
               >
-          {user.name.charAt(0).toUpperCase()}
+                {user.name.charAt(0).toUpperCase()}
               </Flex>
               <Text fontWeight="medium">{user.name}</Text>
             </Flex>

@@ -87,83 +87,98 @@ const Game: React.FC<{
   }
 
   return (
-    <Flex direction="column" gap="6" width="100%" maxW="600px" mx="auto">
+    <Flex direction="column" gap="6" mx="auto">
       <Flex direction="column" gap="2" align="center">
-      <Text textStyle="2xl" fontWeight="bold" color="gray.700">
-        Question {state.question_id + 1}
-      </Text>
-      <Flex gap="4" wrap="wrap" justify="center">
-        <Flex align="center" gap="1">
-        <Text textStyle="sm" color="gray.600">Score:</Text>
-        <Text textStyle="xl" color="green.500" fontWeight="bold">
-          {state.question.score}
+        <Text textStyle="2xl" fontWeight="bold">
+          Question {state.question_id + 1}
         </Text>
+        <Flex gap="4" wrap="wrap" justify="center">
+          <Flex align="center" gap="1">
+            <Text textStyle="sm">Score:</Text>
+            <Text textStyle="xl" color="green.500" fontWeight="bold">
+              {state.question.score}
+            </Text>
+          </Flex>
+          <Flex align="center" gap="1">
+            <Text textStyle="sm">Fastest Bonus:</Text>
+            <Text textStyle="xl" color="orange.500" fontWeight="bold">
+              {state.question.bonus}
+            </Text>
+          </Flex>
         </Flex>
-        <Flex align="center" gap="1">
-        <Text textStyle="sm" color="gray.600">Fastest Bonus:</Text>
-        <Text textStyle="xl" color="orange.500" fontWeight="bold">
-          {state.question.bonus}
-        </Text>
-        </Flex>
-      </Flex>
       </Flex>
 
       {audio.playing() && (
-      <Progress.Root
-        value={Math.min(100, (audioCurrentTime / 10) * 100)}
-        colorPalette="green"
-        size="lg"
-      >
-        <Progress.Track bg="gray.200" borderRadius="full">
-        <Progress.Range borderRadius="full" />
-        </Progress.Track>
-      </Progress.Root>
+        <Progress.Root
+          value={Math.min(100, (audioCurrentTime / 10) * 100)}
+          colorPalette="green"
+          size="lg"
+        >
+          <Progress.Track bg="gray.200" borderRadius="full">
+            <Progress.Range borderRadius="full" />
+          </Progress.Track>
+        </Progress.Root>
       )}
 
-      <Flex direction="column" gap="4" p="6" bg="gray.50" borderRadius="xl" shadow="md">
-      <Text textAlign="center" textStyle="xl" fontWeight="bold" color="gray.700">
-        Guess the {state.question.question_type}
-      </Text>
-      <Flex direction="column" gap="3">
-        {state.question.choices.map((choice, index) => (
-        <Button
-          key={index}
-          type="button"
-          onClick={() => handleChoiceSubmit(index)}
-          disabled={selectedChoice !== null || !audio.playing()}
-          height="auto"
-          minH="60px"
-          width="100%"
-          fontSize="lg"
-          fontWeight="medium"
-          whiteSpace="normal"
+      <Flex
+        direction="column"
+        gap="4"
+        p="6"
+        bg="gray.50"
+        borderRadius="xl"
+        shadow="md"
+      >
+        <Text
           textAlign="center"
-          px="4"
-          py="3"
-          borderRadius="lg"
-          transition="all 0.2s"
-          backgroundColor={
-          selectedChoice === index 
-            ? "blue.500" 
-            : "white"
-          }
-          color={selectedChoice === index ? "white" : "gray.700"}
-          border="2px solid"
-          borderColor={selectedChoice === index ? "blue.500" : "gray.300"}
-          _hover={{
-          transform: selectedChoice === null && audio.playing() ? "translateY(-2px)" : "none",
-          shadow: selectedChoice === null && audio.playing() ? "lg" : "none",
-          borderColor: selectedChoice === null && audio.playing() ? "blue.400" : undefined,
-          }}
-          _disabled={{
-          opacity: selectedChoice === null ? 0.5 : 1,
-          cursor: "not-allowed",
-          }}
+          textStyle="xl"
+          fontWeight="bold"
+          color="gray.700"
         >
-          {choice}
-        </Button>
-        ))}
-      </Flex>
+          Guess the {state.question.question_type}
+        </Text>
+        <Flex direction="column" gap="3">
+          {state.question.choices.map((choice, index) => (
+            <Button
+              key={index}
+              type="button"
+              onClick={() => handleChoiceSubmit(index)}
+              disabled={selectedChoice !== null || !audio.playing()}
+              height="auto"
+              minH="60px"
+              width="100%"
+              fontSize="lg"
+              fontWeight="medium"
+              whiteSpace="normal"
+              textAlign="center"
+              px="4"
+              py="3"
+              borderRadius="lg"
+              transition="all 0.2s"
+              backgroundColor={selectedChoice === index ? "blue.500" : "white"}
+              color={selectedChoice === index ? "white" : "gray.700"}
+              border="2px solid"
+              borderColor={selectedChoice === index ? "blue.500" : "gray.300"}
+              _hover={{
+                transform:
+                  selectedChoice === null && audio.playing()
+                    ? "translateY(-2px)"
+                    : "none",
+                shadow:
+                  selectedChoice === null && audio.playing() ? "lg" : "none",
+                borderColor:
+                  selectedChoice === null && audio.playing()
+                    ? "blue.400"
+                    : undefined,
+              }}
+              _disabled={{
+                opacity: selectedChoice === null ? 0.5 : 1,
+                cursor: "not-allowed",
+              }}
+            >
+              {choice}
+            </Button>
+          ))}
+        </Flex>
       </Flex>
 
       <Scoreboard title="Scoreboard" users={state.users} />
