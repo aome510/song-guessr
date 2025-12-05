@@ -126,13 +126,6 @@ function Room() {
     <Flex direction="column" justifyContent="center" gap="2" maxW="75%">
       <Heading size="3xl">Room {id}</Heading>
       {content()}
-      <Button
-        onClick={() => {
-          window.location.href = "/";
-        }}
-      >
-        Home
-      </Button>
     </Flex>
   );
 }

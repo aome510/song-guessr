@@ -14,7 +14,7 @@ const Game: React.FC<{
 }> = ({ ws, state, user, room, isOwner }) => {
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [audioCurrentTime, setAudioCurrentTime] = useState<number>(0);
-  const [audioPlayable, setAudioPlayable] = useState<boolean>(true);
+  const [progress, setProgress] = useState<number>(0);
   // construct a timer to measure the elapsed time of the current song's progress
   const [timer] = useState(performance.now() - state.song_progress_ms);
 
@@ -23,17 +23,12 @@ const Game: React.FC<{
       src: [state.question.song_url],
       format: ["mp3"],
       html5: true,
-      onplayerror: () => {
-        setAudioPlayable(false);
-      },
       autoplay: true,
       volume: 0.5,
     });
 
     audio.on("play", () => {
-      setAudioPlayable(true);
-      const progress = (performance.now() - timer) / 1000;
-      audio.seek(progress);
+      audio.seek((performance.now() - timer) / 1000);
     });
 
     return audio;
@@ -49,6 +44,16 @@ const Game: React.FC<{
       clearInterval(interval);
     };
   }, [audio]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setProgress((performance.now() - timer) / 1000);
+    }, 100);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, [timer]);
 
   const handleChoiceSubmit = (selectedChoice: number) => {
     setSelectedChoice(selectedChoice);
@@ -66,7 +71,7 @@ const Game: React.FC<{
   // this is a hack to get the audio to play on the first render
   // because the audio autoplay must be triggered by a user gesture
   // more details: see https://developer.chrome.com/blog/autoplay/
-  if (audioPlayable === false) {
+  if (!audio.playing() && progress > 1.0) {
     return (
       <Button
         padding="2"
