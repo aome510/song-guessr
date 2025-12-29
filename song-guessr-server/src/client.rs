@@ -4,42 +4,41 @@ use rspotify::{
     prelude::{BaseClient, OAuthClient},
     AuthCodePkceSpotify, Config, Credentials, OAuth,
 };
+use serde::Deserialize;
 use std::collections::HashSet;
 
+const TRACK_LIMIT: usize = 100;
 const REDIRECT_URI: &str = "http://127.0.0.1:8989/login";
-const SPOTIFY_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
+const SPOTIFY_CLIENT_ID: &str = "282cce38fbf041ab8325d63464202d6d";
 // based on https://github.com/librespot-org/librespot/blob/f96f36c064795011f9fee912291eecb1aa46fff6/src/main.rs#L173
-const OAUTH_SCOPES: &[&str] = &[
+pub const OAUTH_SCOPES: &[&str] = &[
+    // Spotify Connect
+    "user-read-playback-state",
+    "user-modify-playback-state",
+    "user-read-currently-playing",
+    // Playback
     "app-remote-control",
-    "playlist-modify",
+    "streaming",
+    // Playlists
+    "playlist-read-private",
+    "playlist-read-collaborative",
     "playlist-modify-private",
     "playlist-modify-public",
-    "playlist-read",
-    "playlist-read-collaborative",
-    "playlist-read-private",
-    "streaming",
-    "ugc-image-upload",
+    // Follow
     "user-follow-modify",
     "user-follow-read",
+    // Listening History
+    "user-read-playback-position",
+    "user-top-read",
+    "user-read-recently-played",
+    // Library
     "user-library-modify",
     "user-library-read",
-    "user-modify",
-    "user-modify-playback-state",
-    "user-modify-private",
-    "user-personalized",
-    "user-read-birthdate",
-    "user-read-currently-playing",
-    "user-read-email",
-    "user-read-play-history",
-    "user-read-playback-position",
-    "user-read-playback-state",
-    "user-read-private",
-    "user-read-recently-played",
-    "user-top-read",
 ];
 
 pub struct Client {
     spotify: AuthCodePkceSpotify,
+    deezer: DeezerClient,
 }
 
 impl Client {
@@ -57,6 +56,7 @@ impl Client {
         };
         Self {
             spotify: AuthCodePkceSpotify::with_config(creds, oauth, config),
+            deezer: DeezerClient::new(),
         }
     }
 
@@ -88,6 +88,85 @@ impl Client {
                 tracks.push(track);
             }
         }
+        // only keep the top TRACK_LIMIT most popular tracks
+        tracks.sort_by_key(|t| t.popularity);
+        tracks.reverse();
+        tracks = tracks.into_iter().take(TRACK_LIMIT).collect();
+        let tracks = futures::future::join_all(tracks.into_iter().map(|mut track| async {
+            track.preview_url = self.deezer.search_track_preview(&track).await;
+            track
+        }))
+        .await;
+        let tracks: Vec<_> = tracks.into_iter().collect();
         Ok(tracks)
+    }
+}
+
+// Deezer API integration
+struct DeezerClient {
+    client: reqwest::Client,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeezerSearchResponse {
+    data: Vec<DeezerTrack>,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeezerTrack {
+    preview: Option<String>,
+}
+
+impl DeezerClient {
+    fn new() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+        }
+    }
+
+    async fn search_track_preview(&self, track: &FullTrack) -> Option<String> {
+        // Build search query with track name and artist
+        let artist_name = track.artists.first()?.name.clone();
+        let track_name = track.name.clone();
+        let query = format!("{} {}", artist_name, track_name);
+
+        // Search Deezer API
+        let url = format!(
+            "https://api.deezer.com/search?q={}",
+            urlencoding::encode(&query)
+        );
+
+        let response = self.client.get(&url).send().await.ok()?;
+        let search_result: DeezerSearchResponse = response.json().await.ok()?;
+
+        // Return the first preview URL found
+        search_result
+            .data
+            .into_iter()
+            .find_map(|track| track.preview)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rspotify::model::Id;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_get_playlist_tracks() {
+        let mut client = Client::new();
+        client.get_token().await.unwrap();
+        let playlists = client.search_playlist("bts".to_string()).await.unwrap();
+        assert!(!playlists.is_empty(), "Should find at least one playlist");
+        let playlist_id = playlists[0].id.id();
+        let tracks = client.playlist_tracks(playlist_id).await.unwrap();
+        assert!(!tracks.is_empty(), "Playlist should have tracks");
+        for track in tracks {
+            assert!(
+                track.preview_url.is_some(),
+                "Track should have a preview URL"
+            );
+        }
     }
 }
