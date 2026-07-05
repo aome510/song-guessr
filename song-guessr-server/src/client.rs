@@ -7,35 +7,31 @@ use rspotify::{
 use std::collections::HashSet;
 
 const REDIRECT_URI: &str = "http://127.0.0.1:8989/login";
-const SPOTIFY_CLIENT_ID: &str = "65b708073fc0480ea92a077233ca87bd";
-// based on https://github.com/librespot-org/librespot/blob/f96f36c064795011f9fee912291eecb1aa46fff6/src/main.rs#L173
-const OAUTH_SCOPES: &[&str] = &[
+const NCSPOT_CLIENT_ID: &str = "d420a117a32841c2b3474932e49fb54b";
+// based on https://developer.spotify.com/documentation/web-api/concepts/scopes#list-of-scopes
+pub const OAUTH_SCOPES: &[&str] = &[
+    // Spotify Connect
+    "user-read-playback-state",
+    "user-modify-playback-state",
+    "user-read-currently-playing",
+    // Playback
     "app-remote-control",
-    "playlist-modify",
+    "streaming",
+    // Playlists
+    "playlist-read-private",
+    "playlist-read-collaborative",
     "playlist-modify-private",
     "playlist-modify-public",
-    "playlist-read",
-    "playlist-read-collaborative",
-    "playlist-read-private",
-    "streaming",
-    "ugc-image-upload",
+    // Follow
     "user-follow-modify",
     "user-follow-read",
+    // Listening History
+    "user-read-playback-position",
+    "user-top-read",
+    "user-read-recently-played",
+    // Library
     "user-library-modify",
     "user-library-read",
-    "user-modify",
-    "user-modify-playback-state",
-    "user-modify-private",
-    "user-personalized",
-    "user-read-birthdate",
-    "user-read-currently-playing",
-    "user-read-email",
-    "user-read-play-history",
-    "user-read-playback-position",
-    "user-read-playback-state",
-    "user-read-private",
-    "user-read-recently-played",
-    "user-top-read",
 ];
 
 pub struct Client {
@@ -49,7 +45,7 @@ impl Client {
             scopes: HashSet::from_iter(OAUTH_SCOPES.iter().map(|s| s.to_string())),
             ..Default::default()
         };
-        let creds = Credentials::new_pkce(SPOTIFY_CLIENT_ID);
+        let creds = Credentials::new_pkce(NCSPOT_CLIENT_ID);
         let config = Config {
             token_cached: true,
             cache_path: std::path::PathBuf::from("/tmp/spotify_token_cache.json"),
